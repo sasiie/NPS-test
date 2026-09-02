@@ -18,6 +18,7 @@ export type SurveyAnswers = Record<string, string>;
 
 export type SurveyResponse = {
   id: string;
+  roundId: string;
   submittedAt: string;
   answers: SurveyAnswers;
 };
