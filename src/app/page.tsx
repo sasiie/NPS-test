@@ -3,7 +3,6 @@
 import { useState } from "react";
 import { surveySections } from "@/lib/questions";
 import type { SurveyAnswers } from "@/types/survey";
-import Link from "next/link";
 
 export default function Home() {
   const [currentStep, setCurrentStep] = useState(0);
@@ -90,14 +89,7 @@ export default function Home() {
   return (
     <main className="min-h-screen bg-slate-50 px-4 py-10 sm:px-6">
       <div className="mx-auto max-w-3xl">
-        <div className="mb-6 flex justify-end">
-  <Link
-    href="/results"
-    className="rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 shadow-sm transition hover:border-indigo-300 hover:text-indigo-600"
-  >
-    Visa resultat
-  </Link>
-</div>
+        <div className="mb-6 flex justify-end"></div>
         <div className="mb-10">
           <div className="mb-3 flex items-center justify-between">
             <p className="text-sm font-medium text-indigo-700">
