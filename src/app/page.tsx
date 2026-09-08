@@ -1,31 +1,153 @@
 "use client";
 
-import { useState } from "react";
-import { surveySections } from "@/lib/questions";
+import { useEffect, useState } from "react";
+import { supabase } from "@/lib/supabase";
 import type { SurveyAnswers } from "@/types/survey";
 
+type DatabaseQuestion = {
+  id: string;
+  question_id: string;
+  text: string;
+  type: "scale" | "text";
+  section: string;
+  position: number;
+  required: boolean;
+  active: boolean;
+};
+
+type SurveySection = {
+  id: string;
+  title: string;
+  description?: string;
+  questions: DatabaseQuestion[];
+};
+
+const sectionInfo: Record<
+  string,
+  { title: string; description?: string }
+> = {
+  enps: {
+    title: "Din arbetsplats",
+    description: "Vi börjar med några övergripande frågor.",
+  },
+  "work-environment": {
+    title: "Arbetsmiljö",
+    description: "Nu vill vi veta hur du upplever din arbetsmiljö.",
+  },
+  leadership: {
+    title: "Ledarskap",
+    description: "Några frågor om ledarskap och stöd.",
+  },
+  development: {
+    title: "Utveckling",
+  },
+  comments: {
+    title: "Avslutande frågor",
+    description: "Här kan du lämna egna synpunkter.",
+  },
+};
+
 export default function Home() {
+  const [surveySections, setSurveySections] = useState<SurveySection[]>([]);
   const [currentStep, setCurrentStep] = useState(0);
   const [answers, setAnswers] = useState<SurveyAnswers>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitted, setSubmitted] = useState(false);
-  const currentSection = surveySections[currentStep];
   const [showErrors, setShowErrors] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
+  const [loadError, setLoadError] = useState("");
+
+  useEffect(() => {
+    async function loadQuestions() {
+      const { data, error } = await supabase
+        .from("survey-questions")
+        .select("*")
+        .eq("active", true)
+        .order("position", { ascending: true });
+
+      if (error) {
+        console.error("Kunde inte hämta frågor:", error);
+        setLoadError("Kunde inte hämta enkäten.");
+        setIsLoading(false);
+        return;
+      }
+
+      const questions = (data ?? []) as DatabaseQuestion[];
+
+      const sections: SurveySection[] = [];
+
+      for (const question of questions) {
+        let section = sections.find(
+          (existingSection) => existingSection.id === question.section,
+        );
+
+        if (!section) {
+          const info = sectionInfo[question.section];
+
+          section = {
+            id: question.section,
+            title: info?.title ?? question.section,
+            description: info?.description,
+            questions: [],
+          };
+
+          sections.push(section);
+        }
+
+        section.questions.push(question);
+      }
+
+      setSurveySections(sections);
+      setIsLoading(false);
+    }
+
+    loadQuestions();
+  }, []);
+
+  if (isLoading) {
+    return (
+      <main className="flex min-h-screen items-center justify-center bg-slate-50">
+        <p className="text-slate-600">Laddar enkät...</p>
+      </main>
+    );
+  }
+
+  if (loadError || surveySections.length === 0) {
+    return (
+      <main className="flex min-h-screen items-center justify-center bg-slate-50 px-6">
+        <div className="rounded-2xl border border-slate-200 bg-white p-8 text-center shadow-sm">
+          <h1 className="text-xl font-bold text-slate-900">
+            Enkäten kunde inte laddas
+          </h1>
+          <p className="mt-3 text-slate-600">
+            Försök igen om en liten stund.
+          </p>
+        </div>
+      </main>
+    );
+  }
+
+  const currentSection = surveySections[currentStep];
 
   const isFirstStep = currentStep === 0;
   const isLastStep = currentStep === surveySections.length - 1;
 
-  const allRequiredAnswered = currentSection.questions.every((question) => {
-    const answer = answers[question.id];
-    return answer !== undefined && answer.trim() !== "";
-  });
+  const allRequiredAnswered = currentSection.questions
+    .filter((question) => question.required)
+    .every((question) => {
+      const answer = answers[question.question_id];
+
+      return answer !== undefined && answer.trim() !== "";
+    });
 
   function nextStep() {
     if (!allRequiredAnswered) {
       setShowErrors(true);
       return;
     }
+
     setShowErrors(false);
+
     if (!isLastStep) {
       setCurrentStep((step) => step + 1);
     }
@@ -33,15 +155,18 @@ export default function Home() {
 
   function previousStep() {
     setShowErrors(false);
+
     if (!isFirstStep) {
       setCurrentStep((step) => step - 1);
     }
   }
+
   async function submitSurvey() {
     if (!allRequiredAnswered) {
       setShowErrors(true);
       return;
     }
+
     try {
       setIsSubmitting(true);
       setShowErrors(false);
@@ -66,6 +191,7 @@ export default function Home() {
       setIsSubmitting(false);
     }
   }
+
   if (submitted) {
     return (
       <main className="flex min-h-screen items-center justify-center bg-slate-50 px-6">
@@ -89,7 +215,6 @@ export default function Home() {
   return (
     <main className="min-h-screen bg-slate-50 px-4 py-10 sm:px-6">
       <div className="mx-auto max-w-3xl">
-        <div className="mb-6 flex justify-end"></div>
         <div className="mb-10">
           <div className="mb-3 flex items-center justify-between">
             <p className="text-sm font-medium text-indigo-700">
@@ -125,9 +250,12 @@ export default function Home() {
 
         <div className="space-y-5">
           {currentSection.questions.map((question) => {
-            const answer = answers[question.id];
+            const answer = answers[question.question_id];
+
             const hasError =
-              showErrors && (answer === undefined || answer.trim() === "");
+              question.required &&
+              showErrors &&
+              (answer === undefined || answer.trim() === "");
 
             return (
               <section
@@ -138,8 +266,12 @@ export default function Home() {
               >
                 <h2 className="text-base font-semibold leading-6 text-slate-900">
                   {question.text}
-                  <span className="ml-1 text-indigo-600">*</span>
+
+                  {question.required && (
+                    <span className="ml-1 text-indigo-600">*</span>
+                  )}
                 </h2>
+
                 {hasError && (
                   <p
                     role="alert"
@@ -154,7 +286,7 @@ export default function Home() {
                     <div className="grid grid-cols-6 gap-2 sm:grid-cols-11">
                       {Array.from({ length: 11 }, (_, number) => {
                         const selected =
-                          answers[question.id] === String(number);
+                          answers[question.question_id] === String(number);
 
                         return (
                           <button
@@ -164,7 +296,7 @@ export default function Home() {
                             onClick={() =>
                               setAnswers((previous) => ({
                                 ...previous,
-                                [question.id]: String(number),
+                                [question.question_id]: String(number),
                               }))
                             }
                             className={`aspect-square rounded-xl border text-sm font-semibold transition ${
@@ -190,11 +322,11 @@ export default function Home() {
 
                 {question.type === "text" && (
                   <textarea
-                    value={answers[question.id] ?? ""}
+                    value={answers[question.question_id] ?? ""}
                     onChange={(event) =>
                       setAnswers((previous) => ({
                         ...previous,
-                        [question.id]: event.target.value,
+                        [question.question_id]: event.target.value,
                       }))
                     }
                     className={`mt-5 min-h-36 w-full resize-y rounded-xl border bg-white p-4 text-slate-900 outline-none transition placeholder:text-slate-400 focus:ring-4 ${
@@ -209,14 +341,16 @@ export default function Home() {
             );
           })}
         </div>
+
         {showErrors && !allRequiredAnswered && (
           <div
             role="alert"
             className="mt-6 rounded-xl border border-red-200 bg-red-50 p-4 text-sm font-medium text-red-700"
           >
-            Du behöver svara på alla frågor innan du kan gå vidare.
+            Du behöver svara på alla obligatoriska frågor innan du kan gå vidare.
           </div>
         )}
+
         <div className="mt-8 flex items-center justify-between border-t border-slate-200 pt-6">
           {!isFirstStep ? (
             <button

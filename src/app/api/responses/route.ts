@@ -1,13 +1,32 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { supabase } from "@/lib/supabase";
-import { activeRound } from "@/lib/round";
 import type { SurveyAnswers } from "@/types/survey";
 
 export async function POST(request: Request) {
   try {
     const answers: SurveyAnswers = await request.json();
 
+    // Hämta den puls som är aktiv just nu
+    const { data: activeRound, error: roundError } = await supabase
+      .from("survey-rounds")
+      .select("id")
+      .eq("active", true)
+      .single();
+
+    if (roundError || !activeRound) {
+      console.error("Active round error:", roundError);
+
+      return NextResponse.json(
+        {
+          success: false,
+          message: "Det finns ingen aktiv enkätomgång.",
+        },
+        { status: 400 },
+      );
+    }
+
+    // Spara svaret på den aktiva pulsen
     const { error } = await supabase.from("survey-responses").insert({
       round_id: activeRound.id,
       answers,
@@ -81,10 +100,19 @@ export async function GET(request: Request) {
     );
   }
 
-  const { data, error } = await authenticatedSupabase
+  const { searchParams } = new URL(request.url);
+  const roundId = searchParams.get("round_id");
+
+  let query = authenticatedSupabase
     .from("survey-responses")
     .select("*")
     .order("created_at", { ascending: false });
+
+  if (roundId) {
+    query = query.eq("round_id", roundId);
+  }
+
+  const { data, error } = await query;
 
   if (error) {
     console.error("Supabase GET error:", error);

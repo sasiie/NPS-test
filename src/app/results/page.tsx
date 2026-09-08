@@ -5,14 +5,27 @@ import type { SurveyResponse } from "@/types/survey";
 import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 
+type Question = {
+  id: string;
+  question_id: string;
+  text: string;
+  type: "scale" | "text";
+  section: string;
+  position: number;
+  required: boolean;
+  active: boolean;
+};
+
 export default function ResultsPage() {
   const router = useRouter();
+
   const [responses, setResponses] = useState<SurveyResponse[]>([]);
+  const [questions, setQuestions] = useState<Question[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState("");
 
   useEffect(() => {
-    async function checkAdminAndLoadResponses() {
+    async function checkAdminAndLoadResults() {
       const {
         data: { session },
       } = await supabase.auth.getSession();
@@ -23,23 +36,39 @@ export default function ResultsPage() {
       }
 
       try {
-        const {
-          data: { session },
-        } = await supabase.auth.getSession();
+        setError("");
 
-        const response = await fetch("/api/responses", {
+        // Hämta enkätsvaren
+        const responseRequest = fetch("/api/responses", {
           headers: {
-            Authorization: `Bearer ${session?.access_token}`,
+            Authorization: `Bearer ${session.access_token}`,
           },
         });
 
-        if (!response.ok) {
-          throw new Error("Kunde inte hämta resultaten");
+        // Hämta alla frågor.
+        // Admin får även se dolda frågor så gamla resultat kan visas.
+        const questionsRequest = supabase
+          .from("survey-questions")
+          .select("*")
+          .order("position", { ascending: true });
+
+        const [responseResult, questionsResult] = await Promise.all([
+          responseRequest,
+          questionsRequest,
+        ]);
+
+        if (!responseResult.ok) {
+          throw new Error("Kunde inte hämta resultaten.");
         }
 
-        const data: SurveyResponse[] = await response.json();
+        if (questionsResult.error) {
+          throw questionsResult.error;
+        }
 
-        setResponses(data);
+        const responseData: SurveyResponse[] = await responseResult.json();
+
+        setResponses(responseData);
+        setQuestions((questionsResult.data ?? []) as Question[]);
       } catch (error) {
         console.error(error);
         setError("Kunde inte hämta resultaten.");
@@ -48,14 +77,14 @@ export default function ResultsPage() {
       }
     }
 
-    checkAdminAndLoadResponses();
+    checkAdminAndLoadResults();
   }, [router]);
 
   // ----- eNPS -----
 
   const enpsScores = responses
     .map((response) => Number(response.answers["enps"]))
-    .filter((score) => !Number.isNaN(score));
+    .filter((score) => Number.isFinite(score));
 
   const promoters = enpsScores.filter((score) => score >= 9).length;
 
@@ -75,15 +104,19 @@ export default function ResultsPage() {
         )
       : 0;
 
-  // ----- Genomsnitt -----
+  // ----- Hjälpfunktioner -----
+
+  function getScores(questionId: string) {
+    return responses
+      .map((response) => Number(response.answers[questionId]))
+      .filter((score) => Number.isFinite(score));
+  }
 
   function calculateAverage(questionId: string) {
-    const scores = responses
-      .map((response) => Number(response.answers[questionId]))
-      .filter((score) => !Number.isNaN(score));
+    const scores = getScores(questionId);
 
     if (scores.length === 0) {
-      return 0;
+      return null;
     }
 
     const total = scores.reduce((sum, score) => sum + score, 0);
@@ -91,54 +124,26 @@ export default function ResultsPage() {
     return total / scores.length;
   }
 
-  const averages = [
-    {
-      id: "satisfaction",
-      title: "Nöjdhet med arbetsplatsen",
-      value: calculateAverage("satisfaction"),
-    },
-    {
-      id: "work-environment",
-      title: "Arbetsmiljö",
-      value: calculateAverage("work-environment"),
-    },
-    {
-      id: "workload",
-      title: "Arbetsbelastning",
-      value: calculateAverage("workload"),
-    },
-    {
-      id: "leadership",
-      title: "Ledarskap",
-      value: calculateAverage("leadership"),
-    },
-    {
-      id: "support",
-      title: "Stöd",
-      value: calculateAverage("support"),
-    },
-    {
-      id: "development",
-      title: "Utveckling",
-      value: calculateAverage("development"),
-    },
-  ];
+  function getTextAnswers(questionId: string) {
+    return responses
+      .map((response) => response.answers[questionId])
+      .filter(
+        (answer): answer is string =>
+          typeof answer === "string" && answer.trim().length > 0,
+      );
+  }
 
-  // ----- Kommentarer -----
+  // ----- Dynamiska skalfrågor -----
 
-  const improvementComments = responses
-    .map((response) => response.answers?.["comment"])
-    .filter(
-      (comment): comment is string =>
-        typeof comment === "string" && comment.trim().length > 0,
-    );
+  const scaleQuestions = questions.filter(
+    (question) => question.type === "scale" && question.question_id !== "enps",
+  );
 
-  const positiveComments = responses
-    .map((response) => response.answers?.["positive"])
-    .filter(
-      (comment): comment is string =>
-        typeof comment === "string" && comment.trim().length > 0,
-    );
+  // ----- Dynamiska fritextfrågor -----
+
+  const textQuestions = questions.filter(
+    (question) => question.type === "text",
+  );
 
   async function handleLogout() {
     await supabase.auth.signOut();
@@ -210,7 +215,9 @@ export default function ResultsPage() {
           <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
             <p className="text-sm font-medium text-slate-500">eNPS</p>
 
-            <p className="mt-2 text-4xl font-bold text-slate-900">{enps}</p>
+            <p className="mt-2 text-4xl font-bold text-slate-900">
+              {totalEnpsResponses > 0 ? enps : "–"}
+            </p>
           </section>
 
           <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
@@ -242,12 +249,12 @@ export default function ResultsPage() {
           </section>
         </div>
 
-        {/* Genomsnitt */}
+        {/* Skalfrågor */}
 
         <section className="mt-10">
           <div className="mb-5">
             <h2 className="text-xl font-bold text-slate-900">
-              Genomsnitt per område
+              Genomsnitt per fråga
             </h2>
 
             <p className="mt-1 text-sm text-slate-500">
@@ -256,37 +263,74 @@ export default function ResultsPage() {
           </div>
 
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-            {averages.map((item) => (
-              <div
-                key={item.id}
-                className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm"
-              >
-                <p className="text-sm font-medium text-slate-500">
-                  {item.title}
-                </p>
+            {scaleQuestions.map((question) => {
+              const average = calculateAverage(question.question_id);
 
-                <div className="mt-3 flex items-end gap-2">
-                  <p className="text-3xl font-bold text-slate-900">
-                    {item.value.toFixed(1)}
-                  </p>
+              const answerCount = getScores(question.question_id).length;
 
-                  <p className="pb-1 text-sm text-slate-400">/ 10</p>
+              return (
+                <div
+                  key={question.id}
+                  className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm"
+                >
+                  <div className="flex items-start justify-between gap-3">
+                    <p className="text-sm font-medium leading-6 text-slate-600">
+                      {question.text}
+                    </p>
+
+                    {!question.active && (
+                      <span className="shrink-0 rounded-full bg-amber-50 px-2 py-1 text-xs font-medium text-amber-700">
+                        Dold
+                      </span>
+                    )}
+                  </div>
+
+                  {average !== null ? (
+                    <>
+                      <div className="mt-3 flex items-end gap-2">
+                        <p className="text-3xl font-bold text-slate-900">
+                          {average.toFixed(1)}
+                        </p>
+
+                        <p className="pb-1 text-sm text-slate-400">/ 10</p>
+                      </div>
+
+                      <p className="mt-1 text-xs text-slate-400">
+                        {answerCount} {answerCount === 1 ? "svar" : "svar"}
+                      </p>
+
+                      <div className="mt-4 h-2 overflow-hidden rounded-full bg-slate-100">
+                        <div
+                          className="h-full rounded-full bg-indigo-600"
+                          style={{
+                            width: `${Math.min(
+                              Math.max((average / 10) * 100, 0),
+                              100,
+                            )}%`,
+                          }}
+                        />
+                      </div>
+                    </>
+                  ) : (
+                    <p className="mt-4 text-sm text-slate-500">
+                      Inga svar på frågan ännu.
+                    </p>
+                  )}
                 </div>
-
-                <div className="mt-4 h-2 overflow-hidden rounded-full bg-slate-100">
-                  <div
-                    className="h-full rounded-full bg-indigo-600"
-                    style={{
-                      width: `${(item.value / 10) * 100}%`,
-                    }}
-                  />
-                </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
+
+          {scaleQuestions.length === 0 && (
+            <div className="rounded-2xl border border-slate-200 bg-white p-6">
+              <p className="text-sm text-slate-500">
+                Det finns inga skalfrågor att visa.
+              </p>
+            </div>
+          )}
         </section>
 
-        {/* Kommentarer */}
+        {/* Fritextsvar */}
 
         <section className="mt-10">
           <div className="mb-5">
@@ -298,62 +342,60 @@ export default function ResultsPage() {
           </div>
 
           <div className="grid gap-6 lg:grid-cols-2">
-            {/* Förbättringar */}
+            {textQuestions.map((question) => {
+              const answers = getTextAnswers(question.question_id);
 
-            <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-              <h3 className="font-semibold text-slate-900">
-                Vad kan vi förbättra?
-              </h3>
+              return (
+                <div
+                  key={question.id}
+                  className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm"
+                >
+                  <div className="flex items-start justify-between gap-3">
+                    <h3 className="font-semibold leading-6 text-slate-900">
+                      {question.text}
+                    </h3>
 
-              <p className="mt-1 text-sm text-slate-500">
-                {improvementComments.length} svar
-              </p>
+                    {!question.active && (
+                      <span className="shrink-0 rounded-full bg-amber-50 px-2 py-1 text-xs font-medium text-amber-700">
+                        Dold
+                      </span>
+                    )}
+                  </div>
 
-              <div className="mt-5 space-y-3">
-                {improvementComments.length > 0 ? (
-                  improvementComments.map((comment, index) => (
-                    <div key={index} className="rounded-xl bg-slate-50 p-4">
-                      <p className="text-sm leading-6 text-slate-700">
-                        &ldquo;{comment}&rdquo;
-                      </p>
-                    </div>
-                  ))
-                ) : (
-                  <p className="text-sm text-slate-500">
-                    Inga kommentarer ännu.
+                  <p className="mt-1 text-sm text-slate-500">
+                    {answers.length} {answers.length === 1 ? "svar" : "svar"}
                   </p>
-                )}
-              </div>
-            </div>
 
-            {/* Positiva svar */}
-
-            <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-              <h3 className="font-semibold text-slate-900">
-                Vad fungerar särskilt bra?
-              </h3>
-
-              <p className="mt-1 text-sm text-slate-500">
-                {positiveComments.length} svar
-              </p>
-
-              <div className="mt-5 space-y-3">
-                {positiveComments.length > 0 ? (
-                  positiveComments.map((comment, index) => (
-                    <div key={index} className="rounded-xl bg-slate-50 p-4">
-                      <p className="text-sm leading-6 text-slate-700">
-                        &ldquo;{comment}&rdquo;
+                  <div className="mt-5 space-y-3">
+                    {answers.length > 0 ? (
+                      answers.map((answer, index) => (
+                        <div
+                          key={`${question.id}-${index}`}
+                          className="rounded-xl bg-slate-50 p-4"
+                        >
+                          <p className="text-sm leading-6 text-slate-700">
+                            &ldquo;{answer}&rdquo;
+                          </p>
+                        </div>
+                      ))
+                    ) : (
+                      <p className="text-sm text-slate-500">
+                        Inga kommentarer ännu.
                       </p>
-                    </div>
-                  ))
-                ) : (
-                  <p className="text-sm text-slate-500">
-                    Inga kommentarer ännu.
-                  </p>
-                )}
-              </div>
-            </div>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
           </div>
+
+          {textQuestions.length === 0 && (
+            <div className="rounded-2xl border border-slate-200 bg-white p-6">
+              <p className="text-sm text-slate-500">
+                Det finns inga fritextfrågor att visa.
+              </p>
+            </div>
+          )}
         </section>
 
         {/* Inga svar */}
