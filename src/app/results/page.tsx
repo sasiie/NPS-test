@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import type { SurveyResponse } from "@/types/survey";
 import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
+import AdminNav from "@/components/AdminNav";
 
 type Question = {
   id: string;
@@ -16,16 +17,28 @@ type Question = {
   active: boolean;
 };
 
+type SurveyRound = {
+  id: string;
+  created_at: string;
+  name: string;
+  active: boolean;
+};
+
 export default function ResultsPage() {
   const router = useRouter();
 
   const [responses, setResponses] = useState<SurveyResponse[]>([]);
   const [questions, setQuestions] = useState<Question[]>([]);
+  const [rounds, setRounds] = useState<SurveyRound[]>([]);
+  const [selectedRoundId, setSelectedRoundId] = useState("");
+
   const [isLoading, setIsLoading] = useState(true);
+  const [isLoadingResponses, setIsLoadingResponses] = useState(false);
   const [error, setError] = useState("");
 
+  // Hämta frågor + pulser när sidan öppnas
   useEffect(() => {
-    async function checkAdminAndLoadResults() {
+    async function loadAdminData() {
       const {
         data: { session },
       } = await supabase.auth.getSession();
@@ -38,47 +51,100 @@ export default function ResultsPage() {
       try {
         setError("");
 
-        // Hämta enkätsvaren
-        const responseRequest = fetch("/api/responses", {
-          headers: {
-            Authorization: `Bearer ${session.access_token}`,
-          },
-        });
-
-        // Hämta alla frågor.
-        // Admin får även se dolda frågor så gamla resultat kan visas.
         const questionsRequest = supabase
           .from("survey-questions")
           .select("*")
           .order("position", { ascending: true });
 
-        const [responseResult, questionsResult] = await Promise.all([
-          responseRequest,
-          questionsRequest,
-        ]);
+        const roundsRequest = supabase
+          .from("survey-rounds")
+          .select("*")
+          .order("created_at", { ascending: false });
 
-        if (!responseResult.ok) {
-          throw new Error("Kunde inte hämta resultaten.");
-        }
+        const [questionsResult, roundsResult] = await Promise.all([
+          questionsRequest,
+          roundsRequest,
+        ]);
 
         if (questionsResult.error) {
           throw questionsResult.error;
         }
 
-        const responseData: SurveyResponse[] = await responseResult.json();
+        if (roundsResult.error) {
+          throw roundsResult.error;
+        }
 
-        setResponses(responseData);
+        const loadedRounds = (roundsResult.data ?? []) as SurveyRound[];
+
         setQuestions((questionsResult.data ?? []) as Question[]);
+        setRounds(loadedRounds);
+
+        // Välj den aktiva pulsen automatiskt.
+        // Om ingen är aktiv väljs den senaste pulsen.
+        const activeRound = loadedRounds.find((round) => round.active);
+        const initialRound = activeRound ?? loadedRounds[0];
+
+        if (initialRound) {
+          setSelectedRoundId(initialRound.id);
+        }
       } catch (error) {
         console.error(error);
-        setError("Kunde inte hämta resultaten.");
+        setError("Kunde inte hämta admininformationen.");
       } finally {
         setIsLoading(false);
       }
     }
 
-    checkAdminAndLoadResults();
+    loadAdminData();
   }, [router]);
+
+  // Hämta bara svaren från vald puls
+  useEffect(() => {
+    if (!selectedRoundId) {
+      setResponses([]);
+      return;
+    }
+
+    async function loadResponses() {
+      try {
+        setIsLoadingResponses(true);
+        setError("");
+
+        const {
+          data: { session },
+        } = await supabase.auth.getSession();
+
+        if (!session) {
+          router.replace("/admin");
+          return;
+        }
+
+        const response = await fetch(
+          `/api/responses?round_id=${encodeURIComponent(selectedRoundId)}`,
+          {
+            headers: {
+              Authorization: `Bearer ${session.access_token}`,
+            },
+          },
+        );
+
+        if (!response.ok) {
+          throw new Error("Kunde inte hämta resultaten.");
+        }
+
+        const data: SurveyResponse[] = await response.json();
+
+        setResponses(data);
+      } catch (error) {
+        console.error(error);
+        setError("Kunde inte hämta resultaten.");
+      } finally {
+        setIsLoadingResponses(false);
+      }
+    }
+
+    loadResponses();
+  }, [selectedRoundId, router]);
 
   // ----- eNPS -----
 
@@ -133,22 +199,15 @@ export default function ResultsPage() {
       );
   }
 
-  // ----- Dynamiska skalfrågor -----
-
   const scaleQuestions = questions.filter(
     (question) => question.type === "scale" && question.question_id !== "enps",
   );
-
-  // ----- Dynamiska fritextfrågor -----
 
   const textQuestions = questions.filter(
     (question) => question.type === "text",
   );
 
-  async function handleLogout() {
-    await supabase.auth.signOut();
-    router.push("/admin");
-  }
+  const selectedRound = rounds.find((round) => round.id === selectedRoundId);
 
   if (isLoading) {
     return (
@@ -160,251 +219,310 @@ export default function ResultsPage() {
     );
   }
 
-  if (error) {
-    return (
-      <main className="min-h-screen bg-slate-50 px-4 py-10">
-        <div className="mx-auto max-w-5xl">
-          <p className="text-red-600">{error}</p>
-        </div>
-      </main>
-    );
-  }
-
   return (
     <main className="min-h-screen bg-slate-50 px-4 py-10 sm:px-6">
       <div className="mx-auto max-w-5xl">
+        <AdminNav />
+
         {/* Rubrik */}
 
-        <header className="mb-10 flex items-start justify-between gap-4">
-          <div>
-            <p className="text-sm font-semibold text-indigo-600">
-              Medarbetarpuls
-            </p>
+        <div className="mb-8">
+          <p className="text-sm font-semibold text-indigo-600">Admin</p>
 
-            <h1 className="mt-2 text-3xl font-bold tracking-tight text-slate-900">
-              Resultat
-            </h1>
+          <h1 className="mt-2 text-3xl font-bold tracking-tight text-slate-900">
+            Resultat
+          </h1>
 
-            <p className="mt-3 text-slate-600">
-              Här visas resultaten från undersökningen.
-            </p>
-          </div>
-
-          <button
-            type="button"
-            onClick={handleLogout}
-            className="rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 shadow-sm transition hover:bg-slate-100"
-          >
-            Logga ut
-          </button>
-        </header>
-
-        {/* Antal svar */}
-
-        <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-          <p className="text-sm font-medium text-slate-500">Antal svar</p>
-
-          <p className="mt-2 text-4xl font-bold text-slate-900">
-            {responses.length}
+          <p className="mt-3 text-slate-600">
+            Se och analysera resultaten från dina medarbetarpulser.
           </p>
-        </section>
-
-        {/* eNPS */}
-
-        <div className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-          <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-            <p className="text-sm font-medium text-slate-500">eNPS</p>
-
-            <p className="mt-2 text-4xl font-bold text-slate-900">
-              {totalEnpsResponses > 0 ? enps : "–"}
-            </p>
-          </section>
-
-          <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-            <p className="text-sm font-medium text-slate-500">Promoters</p>
-
-            <p className="mt-2 text-3xl font-bold text-slate-900">
-              {promoters}
-            </p>
-
-            <p className="mt-1 text-xs text-slate-500">Betyg 9–10</p>
-          </section>
-
-          <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-            <p className="text-sm font-medium text-slate-500">Passives</p>
-
-            <p className="mt-2 text-3xl font-bold text-slate-900">{passives}</p>
-
-            <p className="mt-1 text-xs text-slate-500">Betyg 7–8</p>
-          </section>
-
-          <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-            <p className="text-sm font-medium text-slate-500">Detractors</p>
-
-            <p className="mt-2 text-3xl font-bold text-slate-900">
-              {detractors}
-            </p>
-
-            <p className="mt-1 text-xs text-slate-500">Betyg 0–6</p>
-          </section>
         </div>
 
-        {/* Skalfrågor */}
-
-        <section className="mt-10">
-          <div className="mb-5">
-            <h2 className="text-xl font-bold text-slate-900">
-              Genomsnitt per fråga
-            </h2>
-
-            <p className="mt-1 text-sm text-slate-500">
-              Genomsnittligt betyg från 0 till 10.
-            </p>
+        {error && (
+          <div className="mb-6 rounded-xl border border-red-200 bg-red-50 p-4 text-red-700">
+            {error}
           </div>
+        )}
 
-          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-            {scaleQuestions.map((question) => {
-              const average = calculateAverage(question.question_id);
+        {/* Välj puls */}
 
-              const answerCount = getScores(question.question_id).length;
+        <section className="mb-8 rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+            <div className="w-full sm:max-w-md">
+              <label
+                htmlFor="round"
+                className="text-sm font-semibold text-slate-700"
+              >
+                Välj puls
+              </label>
 
-              return (
-                <div
-                  key={question.id}
-                  className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm"
-                >
-                  <div className="flex items-start justify-between gap-3">
-                    <p className="text-sm font-medium leading-6 text-slate-600">
-                      {question.text}
-                    </p>
+              <select
+                id="round"
+                value={selectedRoundId}
+                onChange={(event) => setSelectedRoundId(event.target.value)}
+                className="mt-2 w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-slate-900 outline-none transition focus:border-indigo-500 focus:ring-4 focus:ring-indigo-100"
+              >
+                {rounds.length === 0 && (
+                  <option value="">Inga pulser skapade</option>
+                )}
 
-                    {!question.active && (
-                      <span className="shrink-0 rounded-full bg-amber-50 px-2 py-1 text-xs font-medium text-amber-700">
-                        Dold
-                      </span>
-                    )}
-                  </div>
+                {rounds.map((round) => (
+                  <option key={round.id} value={round.id}>
+                    {round.name}
+                    {round.active ? " — Aktiv" : ""}
+                  </option>
+                ))}
+              </select>
+            </div>
 
-                  {average !== null ? (
-                    <>
-                      <div className="mt-3 flex items-end gap-2">
-                        <p className="text-3xl font-bold text-slate-900">
-                          {average.toFixed(1)}
+            {selectedRound && (
+              <div className="flex items-center gap-2">
+                {selectedRound.active ? (
+                  <span className="rounded-full bg-emerald-50 px-3 py-1.5 text-sm font-semibold text-emerald-700">
+                    Aktiv puls
+                  </span>
+                ) : (
+                  <span className="rounded-full bg-slate-100 px-3 py-1.5 text-sm font-semibold text-slate-600">
+                    Avslutad
+                  </span>
+                )}
+              </div>
+            )}
+          </div>
+        </section>
+
+        {isLoadingResponses ? (
+          <div className="rounded-2xl border border-slate-200 bg-white p-8 text-center shadow-sm">
+            <p className="text-slate-600">Laddar pulsens resultat...</p>
+          </div>
+        ) : selectedRoundId ? (
+          <>
+            {/* Antal svar */}
+
+            <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+              <p className="text-sm font-medium text-slate-500">Antal svar</p>
+
+              <p className="mt-2 text-4xl font-bold text-slate-900">
+                {responses.length}
+              </p>
+
+              {selectedRound && (
+                <p className="mt-2 text-sm text-slate-500">
+                  {selectedRound.name}
+                </p>
+              )}
+            </section>
+
+            {/* eNPS */}
+
+            <div className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+              <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+                <p className="text-sm font-medium text-slate-500">eNPS</p>
+
+                <p className="mt-2 text-4xl font-bold text-slate-900">
+                  {totalEnpsResponses > 0 ? enps : "–"}
+                </p>
+              </section>
+
+              <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+                <p className="text-sm font-medium text-slate-500">Promoters</p>
+
+                <p className="mt-2 text-3xl font-bold text-slate-900">
+                  {promoters}
+                </p>
+
+                <p className="mt-1 text-xs text-slate-500">Betyg 9–10</p>
+              </section>
+
+              <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+                <p className="text-sm font-medium text-slate-500">Passives</p>
+
+                <p className="mt-2 text-3xl font-bold text-slate-900">
+                  {passives}
+                </p>
+
+                <p className="mt-1 text-xs text-slate-500">Betyg 7–8</p>
+              </section>
+
+              <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+                <p className="text-sm font-medium text-slate-500">Detractors</p>
+
+                <p className="mt-2 text-3xl font-bold text-slate-900">
+                  {detractors}
+                </p>
+
+                <p className="mt-1 text-xs text-slate-500">Betyg 0–6</p>
+              </section>
+            </div>
+
+            {/* Skalfrågor */}
+
+            <section className="mt-10">
+              <div className="mb-5">
+                <h2 className="text-xl font-bold text-slate-900">
+                  Genomsnitt per fråga
+                </h2>
+
+                <p className="mt-1 text-sm text-slate-500">
+                  Genomsnittligt betyg från 0 till 10.
+                </p>
+              </div>
+
+              <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                {scaleQuestions.map((question) => {
+                  const average = calculateAverage(question.question_id);
+
+                  const answerCount = getScores(question.question_id).length;
+
+                  return (
+                    <div
+                      key={question.id}
+                      className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm"
+                    >
+                      <div className="flex items-start justify-between gap-3">
+                        <p className="text-sm font-medium leading-6 text-slate-600">
+                          {question.text}
                         </p>
 
-                        <p className="pb-1 text-sm text-slate-400">/ 10</p>
+                        {!question.active && (
+                          <span className="shrink-0 rounded-full bg-amber-50 px-2 py-1 text-xs font-medium text-amber-700">
+                            Dold
+                          </span>
+                        )}
                       </div>
 
-                      <p className="mt-1 text-xs text-slate-400">
-                        {answerCount} {answerCount === 1 ? "svar" : "svar"}
-                      </p>
+                      {average !== null ? (
+                        <>
+                          <div className="mt-3 flex items-end gap-2">
+                            <p className="text-3xl font-bold text-slate-900">
+                              {average.toFixed(1)}
+                            </p>
 
-                      <div className="mt-4 h-2 overflow-hidden rounded-full bg-slate-100">
-                        <div
-                          className="h-full rounded-full bg-indigo-600"
-                          style={{
-                            width: `${Math.min(
-                              Math.max((average / 10) * 100, 0),
-                              100,
-                            )}%`,
-                          }}
-                        />
-                      </div>
-                    </>
-                  ) : (
-                    <p className="mt-4 text-sm text-slate-500">
-                      Inga svar på frågan ännu.
-                    </p>
-                  )}
-                </div>
-              );
-            })}
-          </div>
+                            <p className="pb-1 text-sm text-slate-400">/ 10</p>
+                          </div>
 
-          {scaleQuestions.length === 0 && (
-            <div className="rounded-2xl border border-slate-200 bg-white p-6">
-              <p className="text-sm text-slate-500">
-                Det finns inga skalfrågor att visa.
-              </p>
-            </div>
-          )}
-        </section>
-
-        {/* Fritextsvar */}
-
-        <section className="mt-10">
-          <div className="mb-5">
-            <h2 className="text-xl font-bold text-slate-900">Kommentarer</h2>
-
-            <p className="mt-1 text-sm text-slate-500">
-              Fritextsvar från medarbetarna.
-            </p>
-          </div>
-
-          <div className="grid gap-6 lg:grid-cols-2">
-            {textQuestions.map((question) => {
-              const answers = getTextAnswers(question.question_id);
-
-              return (
-                <div
-                  key={question.id}
-                  className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm"
-                >
-                  <div className="flex items-start justify-between gap-3">
-                    <h3 className="font-semibold leading-6 text-slate-900">
-                      {question.text}
-                    </h3>
-
-                    {!question.active && (
-                      <span className="shrink-0 rounded-full bg-amber-50 px-2 py-1 text-xs font-medium text-amber-700">
-                        Dold
-                      </span>
-                    )}
-                  </div>
-
-                  <p className="mt-1 text-sm text-slate-500">
-                    {answers.length} {answers.length === 1 ? "svar" : "svar"}
-                  </p>
-
-                  <div className="mt-5 space-y-3">
-                    {answers.length > 0 ? (
-                      answers.map((answer, index) => (
-                        <div
-                          key={`${question.id}-${index}`}
-                          className="rounded-xl bg-slate-50 p-4"
-                        >
-                          <p className="text-sm leading-6 text-slate-700">
-                            &ldquo;{answer}&rdquo;
+                          <p className="mt-1 text-xs text-slate-400">
+                            {answerCount} svar
                           </p>
-                        </div>
-                      ))
-                    ) : (
-                      <p className="text-sm text-slate-500">
-                        Inga kommentarer ännu.
-                      </p>
-                    )}
-                  </div>
+
+                          <div className="mt-4 h-2 overflow-hidden rounded-full bg-slate-100">
+                            <div
+                              className="h-full rounded-full bg-indigo-600"
+                              style={{
+                                width: `${Math.min(
+                                  Math.max((average / 10) * 100, 0),
+                                  100,
+                                )}%`,
+                              }}
+                            />
+                          </div>
+                        </>
+                      ) : (
+                        <p className="mt-4 text-sm text-slate-500">
+                          Inga svar på frågan ännu.
+                        </p>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+
+              {scaleQuestions.length === 0 && (
+                <div className="rounded-2xl border border-slate-200 bg-white p-6">
+                  <p className="text-sm text-slate-500">
+                    Det finns inga skalfrågor att visa.
+                  </p>
                 </div>
-              );
-            })}
-          </div>
+              )}
+            </section>
 
-          {textQuestions.length === 0 && (
-            <div className="rounded-2xl border border-slate-200 bg-white p-6">
-              <p className="text-sm text-slate-500">
-                Det finns inga fritextfrågor att visa.
-              </p>
-            </div>
-          )}
-        </section>
+            {/* Fritextsvar */}
 
-        {/* Inga svar */}
+            <section className="mt-10">
+              <div className="mb-5">
+                <h2 className="text-xl font-bold text-slate-900">
+                  Kommentarer
+                </h2>
 
-        {responses.length === 0 && (
-          <div className="mt-8 rounded-2xl border border-slate-200 bg-white p-6 text-center shadow-sm">
-            <p className="text-slate-600">
-              Det finns inga inskickade svar ännu.
+                <p className="mt-1 text-sm text-slate-500">
+                  Fritextsvar från medarbetarna.
+                </p>
+              </div>
+
+              <div className="grid gap-6 lg:grid-cols-2">
+                {textQuestions.map((question) => {
+                  const answers = getTextAnswers(question.question_id);
+
+                  return (
+                    <div
+                      key={question.id}
+                      className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm"
+                    >
+                      <div className="flex items-start justify-between gap-3">
+                        <h3 className="font-semibold leading-6 text-slate-900">
+                          {question.text}
+                        </h3>
+
+                        {!question.active && (
+                          <span className="shrink-0 rounded-full bg-amber-50 px-2 py-1 text-xs font-medium text-amber-700">
+                            Dold
+                          </span>
+                        )}
+                      </div>
+
+                      <p className="mt-1 text-sm text-slate-500">
+                        {answers.length} svar
+                      </p>
+
+                      <div className="mt-5 space-y-3">
+                        {answers.length > 0 ? (
+                          answers.map((answer, index) => (
+                            <div
+                              key={`${question.id}-${index}`}
+                              className="rounded-xl bg-slate-50 p-4"
+                            >
+                              <p className="text-sm leading-6 text-slate-700">
+                                &ldquo;{answer}&rdquo;
+                              </p>
+                            </div>
+                          ))
+                        ) : (
+                          <p className="text-sm text-slate-500">
+                            Inga kommentarer ännu.
+                          </p>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </section>
+
+            {responses.length === 0 && (
+              <div className="mt-8 rounded-2xl border border-slate-200 bg-white p-6 text-center shadow-sm">
+                <p className="font-medium text-slate-700">
+                  Den här pulsen har inga svar ännu.
+                </p>
+
+                <p className="mt-1 text-sm text-slate-500">
+                  Nya svar visas här när medarbetarna skickar in enkäten.
+                </p>
+              </div>
+            )}
+          </>
+        ) : (
+          <div className="rounded-2xl border border-slate-200 bg-white p-8 text-center shadow-sm">
+            <p className="font-medium text-slate-700">
+              Det finns inga pulser ännu.
             </p>
+
+            <button
+              type="button"
+              onClick={() => router.push("/admin/settings/rounds")}
+              className="mt-4 rounded-xl bg-indigo-600 px-5 py-3 font-semibold text-white transition hover:bg-indigo-700"
+            >
+              Skapa en puls
+            </button>
           </div>
         )}
       </div>
