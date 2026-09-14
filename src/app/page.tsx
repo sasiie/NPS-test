@@ -130,10 +130,6 @@ export default function Home() {
         <div className="w-full max-w-2xl">
           <div className="rounded-3xl border border-slate-200 bg-white p-8 shadow-sm sm:p-12">
             <div className="mb-8">
-              <div className="mb-6 flex h-12 w-12 items-center justify-center rounded-2xl bg-indigo-100 text-xl">
-                💬
-              </div>
-
               <p className="text-sm font-semibold text-indigo-600">
                 Medarbetarpuls
               </p>
