@@ -36,7 +36,6 @@ export default function ResultsPage() {
   const [isLoadingResponses, setIsLoadingResponses] = useState(false);
   const [error, setError] = useState("");
 
-  // Hämta frågor + pulser när sidan öppnas
   useEffect(() => {
     async function loadAdminData() {
       const {
@@ -79,8 +78,6 @@ export default function ResultsPage() {
         setQuestions((questionsResult.data ?? []) as Question[]);
         setRounds(loadedRounds);
 
-        // Välj den aktiva pulsen automatiskt.
-        // Om ingen är aktiv väljs den senaste pulsen.
         const activeRound = loadedRounds.find((round) => round.active);
         const initialRound = activeRound ?? loadedRounds[0];
 
@@ -98,7 +95,6 @@ export default function ResultsPage() {
     loadAdminData();
   }, [router]);
 
-  // Hämta bara svaren från vald puls
   useEffect(() => {
     if (!selectedRoundId) {
       setResponses([]);
@@ -297,63 +293,107 @@ export default function ResultsPage() {
           </div>
         ) : selectedRoundId ? (
           <>
-            {/* Antal svar */}
+            {/* Dashboard */}
 
-            <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-              <p className="text-sm font-medium text-slate-500">Antal svar</p>
+            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+              <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+                <p className="text-sm font-medium text-slate-500">Antal svar</p>
 
-              <p className="mt-2 text-4xl font-bold text-slate-900">
-                {responses.length}
-              </p>
-
-              {selectedRound && (
-                <p className="mt-2 text-sm text-slate-500">
-                  {selectedRound.name}
+                <p className="mt-2 text-4xl font-bold text-slate-900">
+                  {responses.length}
                 </p>
-              )}
-            </section>
 
-            {/* eNPS */}
+                <p className="mt-2 text-xs text-slate-400">
+                  Inskickade svar i denna puls
+                </p>
+              </section>
 
-            <div className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
               <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
                 <p className="text-sm font-medium text-slate-500">eNPS</p>
 
                 <p className="mt-2 text-4xl font-bold text-slate-900">
-                  {totalEnpsResponses > 0 ? enps : "–"}
+                  {totalEnpsResponses > 0
+                    ? `${enps > 0 ? "+" : ""}${enps}`
+                    : "–"}
+                </p>
+
+                <p className="mt-2 text-xs text-slate-400">
+                  Skala från −100 till +100
                 </p>
               </section>
 
               <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-                <p className="text-sm font-medium text-slate-500">Promoters</p>
+                <p className="text-sm font-medium text-slate-500">Puls</p>
 
-                <p className="mt-2 text-3xl font-bold text-slate-900">
-                  {promoters}
+                <p className="mt-2 text-lg font-bold leading-7 text-slate-900">
+                  {selectedRound?.name ?? "–"}
                 </p>
 
-                <p className="mt-1 text-xs text-slate-500">Betyg 9–10</p>
-              </section>
-
-              <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-                <p className="text-sm font-medium text-slate-500">Passives</p>
-
-                <p className="mt-2 text-3xl font-bold text-slate-900">
-                  {passives}
-                </p>
-
-                <p className="mt-1 text-xs text-slate-500">Betyg 7–8</p>
-              </section>
-
-              <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-                <p className="text-sm font-medium text-slate-500">Detractors</p>
-
-                <p className="mt-2 text-3xl font-bold text-slate-900">
-                  {detractors}
-                </p>
-
-                <p className="mt-1 text-xs text-slate-500">Betyg 0–6</p>
+                <div className="mt-3">
+                  {selectedRound?.active ? (
+                    <span className="inline-flex rounded-full bg-emerald-50 px-3 py-1 text-xs font-semibold text-emerald-700">
+                      Aktiv
+                    </span>
+                  ) : (
+                    <span className="inline-flex rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-600">
+                      Avslutad
+                    </span>
+                  )}
+                </div>
               </section>
             </div>
+
+            {/* eNPS-fördelning */}
+
+            <section className="mt-6 rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+              <div className="mb-5">
+                <h2 className="text-lg font-bold text-slate-900">
+                  eNPS-fördelning
+                </h2>
+
+                <p className="mt-1 text-sm text-slate-500">
+                  Fördelningen av svar på rekommendationsfrågan.
+                </p>
+              </div>
+
+              <div className="grid gap-4 sm:grid-cols-3">
+                <div className="rounded-xl bg-emerald-50 p-5">
+                  <p className="text-sm font-semibold text-emerald-700">
+                    Promoters
+                  </p>
+
+                  <p className="mt-2 text-3xl font-bold text-emerald-900">
+                    {promoters}
+                  </p>
+
+                  <p className="mt-1 text-xs text-emerald-700">Betyg 9–10</p>
+                </div>
+
+                <div className="rounded-xl bg-amber-50 p-5">
+                  <p className="text-sm font-semibold text-amber-700">
+                    Passives
+                  </p>
+
+                  <p className="mt-2 text-3xl font-bold text-amber-900">
+                    {passives}
+                  </p>
+
+                  <p className="mt-1 text-xs text-amber-700">Betyg 7–8</p>
+                </div>
+
+                <div className="rounded-xl bg-red-50 p-5">
+                  <p className="text-sm font-semibold text-red-700">
+                    Detractors
+                  </p>
+
+                  <p className="mt-2 text-3xl font-bold text-red-900">
+                    {detractors}
+                  </p>
+
+                  <p className="mt-1 text-xs text-red-700">Betyg 0–6</p>
+                </div>
+              </div>
+            </section>
 
             {/* Skalfrågor */}
 
