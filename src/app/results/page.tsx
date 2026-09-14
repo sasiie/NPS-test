@@ -36,6 +36,7 @@ export default function ResultsPage() {
   const [isLoadingResponses, setIsLoadingResponses] = useState(false);
   const [error, setError] = useState("");
 
+  // Hämta frågor + pulser
   useEffect(() => {
     async function loadAdminData() {
       const {
@@ -78,6 +79,8 @@ export default function ResultsPage() {
         setQuestions((questionsResult.data ?? []) as Question[]);
         setRounds(loadedRounds);
 
+        // Välj aktiv puls automatiskt.
+        // Om ingen är aktiv väljs den senaste.
         const activeRound = loadedRounds.find((round) => round.active);
         const initialRound = activeRound ?? loadedRounds[0];
 
@@ -95,6 +98,7 @@ export default function ResultsPage() {
     loadAdminData();
   }, [router]);
 
+  // Hämta svar från vald puls
   useEffect(() => {
     if (!selectedRoundId) {
       setResponses([]);
@@ -205,6 +209,58 @@ export default function ResultsPage() {
 
   const selectedRound = rounds.find((round) => round.id === selectedRoundId);
 
+  // ----- Exportera CSV -----
+
+  function exportToCsv() {
+    if (!selectedRound || responses.length === 0) {
+      return;
+    }
+
+    function escapeCsvValue(value: string | number | undefined | null) {
+      const text = String(value ?? "").replace(/"/g, '""');
+
+      return `"${text}"`;
+    }
+
+    const headers = ["Datum", ...questions.map((question) => question.text)];
+
+    const rows = responses.map((response) => [
+      new Date(response.created_at).toLocaleString("sv-SE"),
+      ...questions.map(
+        (question) => response.answers[question.question_id] ?? "",
+      ),
+    ]);
+
+    const csvContent = [
+      headers.map(escapeCsvValue).join(";"),
+      ...rows.map((row) => row.map((value) => escapeCsvValue(value)).join(";")),
+    ].join("\n");
+
+    // BOM gör att å, ä och ö fungerar bättre i Excel
+    const blob = new Blob(["\uFEFF" + csvContent], {
+      type: "text/csv;charset=utf-8;",
+    });
+
+    const url = URL.createObjectURL(blob);
+
+    const link = document.createElement("a");
+
+    const safeName = selectedRound.name
+      .toLowerCase()
+      .replace(/[^a-z0-9åäö]+/gi, "-")
+      .replace(/^-|-$/g, "");
+
+    link.href = url;
+    link.download = `${safeName}-resultat.csv`;
+
+    document.body.appendChild(link);
+
+    link.click();
+
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+  }
+
   if (isLoading) {
     return (
       <main className="min-h-screen bg-slate-50 px-4 py-10">
@@ -272,7 +328,7 @@ export default function ResultsPage() {
             </div>
 
             {selectedRound && (
-              <div className="flex items-center gap-2">
+              <div className="flex flex-wrap items-center gap-3">
                 {selectedRound.active ? (
                   <span className="rounded-full bg-emerald-50 px-3 py-1.5 text-sm font-semibold text-emerald-700">
                     Aktiv puls
@@ -282,6 +338,15 @@ export default function ResultsPage() {
                     Avslutad
                   </span>
                 )}
+
+                <button
+                  type="button"
+                  onClick={exportToCsv}
+                  disabled={responses.length === 0 || isLoadingResponses}
+                  className="rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40"
+                >
+                  ↓ Exportera CSV
+                </button>
               </div>
             )}
           </div>
@@ -395,7 +460,7 @@ export default function ResultsPage() {
               </div>
             </section>
 
-            {/* Skalfrågor */}
+            {/* Genomsnitt */}
 
             <section className="mt-10">
               <div className="mb-5">
@@ -476,7 +541,7 @@ export default function ResultsPage() {
               )}
             </section>
 
-            {/* Fritextsvar */}
+            {/* Kommentarer */}
 
             <section className="mt-10">
               <div className="mb-5">
