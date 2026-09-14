@@ -22,10 +22,7 @@ type SurveySection = {
   questions: DatabaseQuestion[];
 };
 
-const sectionInfo: Record<
-  string,
-  { title: string; description?: string }
-> = {
+const sectionInfo: Record<string, { title: string; description?: string }> = {
   enps: {
     title: "Din arbetsplats",
     description: "Vi börjar med några övergripande frågor.",
@@ -56,6 +53,7 @@ export default function Home() {
   const [showErrors, setShowErrors] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [loadError, setLoadError] = useState("");
+  const [surveyStarted, setSurveyStarted] = useState(false);
 
   useEffect(() => {
     async function loadQuestions() {
@@ -119,9 +117,104 @@ export default function Home() {
           <h1 className="text-xl font-bold text-slate-900">
             Enkäten kunde inte laddas
           </h1>
-          <p className="mt-3 text-slate-600">
-            Försök igen om en liten stund.
-          </p>
+
+          <p className="mt-3 text-slate-600">Försök igen om en liten stund.</p>
+        </div>
+      </main>
+    );
+  }
+
+  if (!surveyStarted) {
+    return (
+      <main className="flex min-h-screen items-center justify-center bg-slate-50 px-4 py-10 sm:px-6">
+        <div className="w-full max-w-2xl">
+          <div className="rounded-3xl border border-slate-200 bg-white p-8 shadow-sm sm:p-12">
+            <div className="mb-8">
+              <div className="mb-6 flex h-12 w-12 items-center justify-center rounded-2xl bg-indigo-100 text-xl">
+                💬
+              </div>
+
+              <p className="text-sm font-semibold text-indigo-600">
+                Medarbetarpuls
+              </p>
+
+              <h1 className="mt-3 text-3xl font-bold tracking-tight text-slate-900 sm:text-4xl">
+                Vi vill höra vad du tycker
+              </h1>
+
+              <p className="mt-4 text-base leading-7 text-slate-600">
+                Den här medarbetarpulsen hjälper oss att förstå hur du upplever
+                din arbetsplats, arbetsmiljö, ledarskap och utveckling.
+              </p>
+            </div>
+
+            <div className="space-y-4 rounded-2xl bg-slate-50 p-6">
+              <div className="flex gap-4">
+                <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-white text-sm shadow-sm">
+                  ✓
+                </div>
+
+                <div>
+                  <p className="font-semibold text-slate-900">
+                    Dina svar samlas in anonymt
+                  </p>
+
+                  <p className="mt-1 text-sm leading-6 text-slate-600">
+                    Vi ber inte om ditt namn eller andra personuppgifter i
+                    enkäten.
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex gap-4">
+                <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-white text-sm shadow-sm">
+                  ⏱
+                </div>
+
+                <div>
+                  <p className="font-semibold text-slate-900">
+                    Det tar bara några minuter
+                  </p>
+
+                  <p className="mt-1 text-sm leading-6 text-slate-600">
+                    Enkäten består av korta frågor där du framför allt svarar på
+                    en skala från 0 till 10.
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex gap-4">
+                <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-white text-sm shadow-sm">
+                  ♥
+                </div>
+
+                <div>
+                  <p className="font-semibold text-slate-900">
+                    Svara så ärligt du kan
+                  </p>
+
+                  <p className="mt-1 text-sm leading-6 text-slate-600">
+                    Det finns inga rätt eller fel svar. Dina synpunkter hjälper
+                    till att identifiera vad som fungerar bra och vad som kan
+                    förbättras.
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            <button
+              type="button"
+              onClick={() => setSurveyStarted(true)}
+              className="mt-8 w-full rounded-xl bg-indigo-600 px-6 py-4 text-base font-semibold text-white shadow-sm transition hover:bg-indigo-700 focus:outline-none focus:ring-4 focus:ring-indigo-200"
+            >
+              Starta enkäten
+              <span className="ml-2">→</span>
+            </button>
+
+            <p className="mt-5 text-center text-xs leading-5 text-slate-400">
+              Ditt deltagande är frivilligt.
+            </p>
+          </div>
         </div>
       </main>
     );
@@ -347,22 +440,25 @@ export default function Home() {
             role="alert"
             className="mt-6 rounded-xl border border-red-200 bg-red-50 p-4 text-sm font-medium text-red-700"
           >
-            Du behöver svara på alla obligatoriska frågor innan du kan gå vidare.
+            Du behöver svara på alla obligatoriska frågor innan du kan gå
+            vidare.
           </div>
         )}
 
         <div className="mt-8 flex items-center justify-between border-t border-slate-200 pt-6">
-          {!isFirstStep ? (
-            <button
-              type="button"
-              onClick={previousStep}
-              className="rounded-xl px-5 py-3 font-medium text-slate-600 transition hover:bg-slate-100 hover:text-slate-900"
-            >
-              ← Tillbaka
-            </button>
-          ) : (
-            <div />
-          )}
+          <button
+            type="button"
+            onClick={() => {
+              if (isFirstStep) {
+                setSurveyStarted(false);
+              } else {
+                previousStep();
+              }
+            }}
+            className="rounded-xl px-5 py-3 font-medium text-slate-600 transition hover:bg-slate-100 hover:text-slate-900"
+          >
+            ← Tillbaka
+          </button>
 
           {!isLastStep ? (
             <button
