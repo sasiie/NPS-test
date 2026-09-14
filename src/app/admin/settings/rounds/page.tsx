@@ -175,8 +175,8 @@ export default function RoundsPage() {
   return (
     <main className="min-h-screen bg-slate-50 px-4 py-10 sm:px-6">
       <div className="mx-auto max-w-4xl">
+        <AdminNav />
         <div className="mb-8">
-          <AdminNav />
           <p className="text-sm font-semibold text-indigo-600">
             Admin → Inställningar
           </p>
