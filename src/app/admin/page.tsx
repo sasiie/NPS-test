@@ -33,23 +33,16 @@ export default function AdminPage() {
   return (
     <main className="flex min-h-screen items-center justify-center bg-slate-50 px-4">
       <div className="w-full max-w-md rounded-2xl border border-slate-200 bg-white p-8 shadow-sm">
-        <p className="text-sm font-semibold text-indigo-600">
-          Medarbetarpuls
-        </p>
+        <p className="text-sm font-semibold text-indigo-600">Medarbetarpuls</p>
 
-        <h1 className="mt-2 text-3xl font-bold text-slate-900">
-          Admin
-        </h1>
+        <h1 className="mt-2 text-3xl font-bold text-slate-900">Admin</h1>
 
         <p className="mt-3 text-sm text-slate-600">
           Logga in för att se resultaten.
         </p>
 
         <div className="mt-6">
-          <label
-            htmlFor="email"
-            className="text-sm font-medium text-slate-700"
-          >
+          <label htmlFor="email" className="text-sm font-medium text-slate-700">
             Mejladress
           </label>
 
@@ -87,9 +80,7 @@ export default function AdminPage() {
         </div>
 
         {error && (
-          <p className="mt-3 text-sm font-medium text-red-600">
-            {error}
-          </p>
+          <p className="mt-3 text-sm font-medium text-red-600">{error}</p>
         )}
 
         <button
@@ -99,6 +90,14 @@ export default function AdminPage() {
           className="mt-6 w-full rounded-xl bg-indigo-600 px-5 py-3 font-semibold text-white transition hover:bg-indigo-700 disabled:cursor-not-allowed disabled:opacity-60"
         >
           {isLoading ? "Loggar in..." : "Logga in"}
+        </button>
+
+        <button
+          type="button"
+          onClick={() => router.push("/admin/settings/questions")}
+          className="mt-3 w-full rounded-xl border border-slate-200 bg-white px-5 py-3 font-semibold text-slate-700 transition hover:bg-slate-50"
+        >
+          Inställningar
         </button>
       </div>
     </main>
