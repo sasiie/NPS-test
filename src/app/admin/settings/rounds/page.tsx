@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
+import AdminNav from "@/components/AdminNav";
 
 type SurveyRound = {
   id: string;
@@ -175,6 +176,7 @@ export default function RoundsPage() {
     <main className="min-h-screen bg-slate-50 px-4 py-10 sm:px-6">
       <div className="mx-auto max-w-4xl">
         <div className="mb-8">
+          <AdminNav />
           <p className="text-sm font-semibold text-indigo-600">
             Admin → Inställningar
           </p>
@@ -195,9 +197,7 @@ export default function RoundsPage() {
         )}
 
         <section className="mb-8 rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-          <h2 className="text-xl font-bold text-slate-900">
-            Skapa ny puls
-          </h2>
+          <h2 className="text-xl font-bold text-slate-900">Skapa ny puls</h2>
 
           <div className="mt-4 flex flex-col gap-3 sm:flex-row">
             <input
@@ -221,9 +221,7 @@ export default function RoundsPage() {
 
         <section>
           <div className="mb-4">
-            <h2 className="text-xl font-bold text-slate-900">
-              Dina pulser
-            </h2>
+            <h2 className="text-xl font-bold text-slate-900">Dina pulser</h2>
 
             <p className="mt-1 text-sm text-slate-500">
               Bara en puls kan vara aktiv åt gången.
