@@ -5,16 +5,19 @@ import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 import AdminNav from "@/components/AdminNav";
 
+type QuestionType = "scale" | "text" | "multiple-choice";
+
 type Question = {
   id: string;
   question_id: string;
   text: string;
-  type: "scale" | "text";
+  type: QuestionType;
   section: string;
   position: number;
   required: boolean;
   active: boolean;
   scale_max: 5 | 10;
+  options: string[];
 };
 
 const sectionOptions = [
@@ -38,15 +41,17 @@ export default function QuestionsPage() {
   const [editedSection, setEditedSection] = useState("");
   const [editedScaleMax, setEditedScaleMax] = useState<5 | 10>(10);
   const [editedRequired, setEditedRequired] = useState(true);
+  const [editedOptions, setEditedOptions] = useState<string[]>([]);
   const [isSaving, setIsSaving] = useState(false);
 
   // Lägg till fråga
   const [showAddForm, setShowAddForm] = useState(false);
   const [newText, setNewText] = useState("");
-  const [newType, setNewType] = useState<"scale" | "text">("scale");
+  const [newType, setNewType] = useState<QuestionType>("scale");
   const [newSection, setNewSection] = useState("enps");
   const [newRequired, setNewRequired] = useState(true);
   const [newScaleMax, setNewScaleMax] = useState<5 | 10>(10);
+  const [newOptions, setNewOptions] = useState<string[]>(["", ""]);
   const [isAdding, setIsAdding] = useState(false);
 
   const [questionToDelete, setQuestionToDelete] = useState<Question | null>(
@@ -77,7 +82,12 @@ export default function QuestionsPage() {
         return;
       }
 
-      setQuestions((data ?? []) as Question[]);
+      const normalizedQuestions = (data ?? []).map((question) => ({
+        ...question,
+        options: question.options ?? [],
+      })) as Question[];
+
+      setQuestions(normalizedQuestions);
       setIsLoading(false);
     }
 
@@ -90,6 +100,13 @@ export default function QuestionsPage() {
     setEditedSection(question.section);
     setEditedScaleMax(question.scale_max);
     setEditedRequired(question.required);
+    setEditedOptions(
+      question.type === "multiple-choice"
+        ? question.options?.length
+          ? question.options
+          : ["", ""]
+        : [],
+    );
     setError("");
   }
 
@@ -99,6 +116,35 @@ export default function QuestionsPage() {
     setEditedSection("");
     setEditedScaleMax(10);
     setEditedRequired(true);
+    setEditedOptions([]);
+  }
+
+  function updateNewOption(index: number, value: string) {
+    setNewOptions((previous) =>
+      previous.map((option, optionIndex) =>
+        optionIndex === index ? value : option,
+      ),
+    );
+  }
+
+  function removeNewOption(index: number) {
+    setNewOptions((previous) =>
+      previous.filter((_, optionIndex) => optionIndex !== index),
+    );
+  }
+
+  function updateEditedOption(index: number, value: string) {
+    setEditedOptions((previous) =>
+      previous.map((option, optionIndex) =>
+        optionIndex === index ? value : option,
+      ),
+    );
+  }
+
+  function removeEditedOption(index: number) {
+    setEditedOptions((previous) =>
+      previous.filter((_, optionIndex) => optionIndex !== index),
+    );
   }
 
   async function saveQuestion(question: Question) {
@@ -106,6 +152,18 @@ export default function QuestionsPage() {
 
     if (!trimmedText) {
       setError("Frågetexten får inte vara tom.");
+      return;
+    }
+
+    const cleanedOptions =
+      question.type === "multiple-choice"
+        ? editedOptions
+            .map((option) => option.trim())
+            .filter((option) => option !== "")
+        : [];
+
+    if (question.type === "multiple-choice" && cleanedOptions.length < 2) {
+      setError("En flervalsfråga måste ha minst två svarsalternativ.");
       return;
     }
 
@@ -120,6 +178,7 @@ export default function QuestionsPage() {
           section: editedSection,
           required: editedRequired,
           scale_max: editedScaleMax,
+          options: cleanedOptions,
         })
         .eq("id", question.id);
 
@@ -136,16 +195,13 @@ export default function QuestionsPage() {
                 section: editedSection,
                 required: editedRequired,
                 scale_max: editedScaleMax,
+                options: cleanedOptions,
               }
             : item,
         ),
       );
 
-      setEditingId(null);
-      setEditedText("");
-      setEditedSection("");
-      setEditedScaleMax(10);
-      setEditedRequired(true);
+      cancelEditing();
     } catch (error) {
       console.error(error);
       setError("Kunde inte spara frågan.");
@@ -195,6 +251,18 @@ export default function QuestionsPage() {
       return;
     }
 
+    const cleanedOptions =
+      newType === "multiple-choice"
+        ? newOptions
+            .map((option) => option.trim())
+            .filter((option) => option !== "")
+        : [];
+
+    if (newType === "multiple-choice" && cleanedOptions.length < 2) {
+      setError("En flervalsfråga måste ha minst två svarsalternativ.");
+      return;
+    }
+
     try {
       setIsAdding(true);
       setError("");
@@ -216,6 +284,7 @@ export default function QuestionsPage() {
           position: nextPosition,
           required: newRequired,
           scale_max: newScaleMax,
+          options: cleanedOptions,
           active: true,
         })
         .select()
@@ -225,13 +294,20 @@ export default function QuestionsPage() {
         throw error;
       }
 
-      setQuestions((previous) => [...previous, data as Question]);
+      setQuestions((previous) => [
+        ...previous,
+        {
+          ...(data as Question),
+          options: data.options ?? [],
+        },
+      ]);
 
       setNewText("");
       setNewType("scale");
       setNewSection("enps");
       setNewRequired(true);
       setNewScaleMax(10);
+      setNewOptions(["", ""]);
       setShowAddForm(false);
     } catch (error) {
       console.error(error);
@@ -268,6 +344,18 @@ export default function QuestionsPage() {
     } finally {
       setIsDeleting(false);
     }
+  }
+
+  function getQuestionTypeLabel(question: Question) {
+    if (question.type === "scale") {
+      return question.scale_max === 5 ? "Skala 1–5" : "Skala 0–10";
+    }
+
+    if (question.type === "multiple-choice") {
+      return "Flerval";
+    }
+
+    return "Text";
   }
 
   if (isLoading) {
@@ -342,13 +430,23 @@ export default function QuestionsPage() {
 
                 <select
                   value={newType}
-                  onChange={(event) =>
-                    setNewType(event.target.value as "scale" | "text")
-                  }
+                  onChange={(event) => {
+                    const selectedType = event.target.value as QuestionType;
+
+                    setNewType(selectedType);
+
+                    if (
+                      selectedType === "multiple-choice" &&
+                      newOptions.length < 2
+                    ) {
+                      setNewOptions(["", ""]);
+                    }
+                  }}
                   className="mt-2 w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-slate-900 outline-none focus:border-indigo-500 focus:ring-4 focus:ring-indigo-100"
                 >
                   <option value="scale">Skala</option>
                   <option value="text">Text</option>
+                  <option value="multiple-choice">Flerval</option>
                 </select>
               </div>
 
@@ -401,6 +499,53 @@ export default function QuestionsPage() {
                     0–10
                   </button>
                 </div>
+              </div>
+            )}
+
+            {/* FLERVAL */}
+            {newType === "multiple-choice" && (
+              <div className="mt-5">
+                <p className="text-sm font-medium text-slate-700">
+                  Svarsalternativ
+                </p>
+
+                <p className="mt-1 text-sm text-slate-500">
+                  Lägg till minst två alternativ.
+                </p>
+
+                <div className="mt-3 space-y-3">
+                  {newOptions.map((option, index) => (
+                    <div key={index} className="flex items-center gap-2">
+                      <input
+                        type="text"
+                        value={option}
+                        onChange={(event) =>
+                          updateNewOption(index, event.target.value)
+                        }
+                        placeholder={`Alternativ ${index + 1}`}
+                        className="w-full rounded-xl border border-slate-200 px-4 py-3 text-slate-900 outline-none focus:border-indigo-500 focus:ring-4 focus:ring-indigo-100"
+                      />
+
+                      {newOptions.length > 2 && (
+                        <button
+                          type="button"
+                          onClick={() => removeNewOption(index)}
+                          className="shrink-0 rounded-xl border border-red-200 px-4 py-3 text-sm font-semibold text-red-600 transition hover:bg-red-50"
+                        >
+                          Ta bort
+                        </button>
+                      )}
+                    </div>
+                  ))}
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => setNewOptions((previous) => [...previous, ""])}
+                  className="mt-3 rounded-xl border border-indigo-200 px-4 py-2 text-sm font-semibold text-indigo-700 transition hover:bg-indigo-50"
+                >
+                  + Lägg till alternativ
+                </button>
               </div>
             )}
 
@@ -523,6 +668,64 @@ export default function QuestionsPage() {
                           </div>
                         )}
 
+                        {/* REDIGERA FLERVAL */}
+                        {question.type === "multiple-choice" && (
+                          <div className="mt-4">
+                            <p className="text-sm font-medium text-slate-700">
+                              Svarsalternativ
+                            </p>
+
+                            <p className="mt-1 text-sm text-slate-500">
+                              Minst två alternativ krävs.
+                            </p>
+
+                            <div className="mt-3 space-y-3">
+                              {editedOptions.map((option, index) => (
+                                <div
+                                  key={index}
+                                  className="flex items-center gap-2"
+                                >
+                                  <input
+                                    type="text"
+                                    value={option}
+                                    onChange={(event) =>
+                                      updateEditedOption(
+                                        index,
+                                        event.target.value,
+                                      )
+                                    }
+                                    placeholder={`Alternativ ${index + 1}`}
+                                    className="w-full rounded-xl border border-slate-200 px-4 py-3 text-slate-900 outline-none focus:border-indigo-500 focus:ring-4 focus:ring-indigo-100"
+                                  />
+
+                                  {editedOptions.length > 2 && (
+                                    <button
+                                      type="button"
+                                      onClick={() => removeEditedOption(index)}
+                                      className="shrink-0 rounded-xl border border-red-200 px-4 py-3 text-sm font-semibold text-red-600 transition hover:bg-red-50"
+                                    >
+                                      Ta bort
+                                    </button>
+                                  )}
+                                </div>
+                              ))}
+                            </div>
+
+                            <button
+                              type="button"
+                              onClick={() =>
+                                setEditedOptions((previous) => [
+                                  ...previous,
+                                  "",
+                                ])
+                              }
+                              className="mt-3 rounded-xl border border-indigo-200 px-4 py-2 text-sm font-semibold text-indigo-700 transition hover:bg-indigo-50"
+                            >
+                              + Lägg till alternativ
+                            </button>
+                          </div>
+                        )}
+
                         {/* REDIGERA OBLIGATORISK */}
                         <label className="mt-4 flex items-center gap-3 text-sm font-medium text-slate-700">
                           <input
@@ -564,11 +767,7 @@ export default function QuestionsPage() {
 
                         <div className="mt-3 flex flex-wrap gap-2 text-xs">
                           <span className="rounded-full bg-slate-100 px-3 py-1 text-slate-600">
-                            {question.type === "scale"
-                              ? question.scale_max === 5
-                                ? "Skala 1–5"
-                                : "Skala 0–10"
-                              : "Text"}
+                            {getQuestionTypeLabel(question)}
                           </span>
 
                           <span
@@ -587,6 +786,20 @@ export default function QuestionsPage() {
                             </span>
                           )}
                         </div>
+
+                        {question.type === "multiple-choice" &&
+                          question.options?.length > 0 && (
+                            <div className="mt-3 flex flex-wrap gap-2">
+                              {question.options.map((option, index) => (
+                                <span
+                                  key={`${option}-${index}`}
+                                  className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-1 text-xs text-slate-600"
+                                >
+                                  {option}
+                                </span>
+                              ))}
+                            </div>
+                          )}
 
                         <div className="mt-4 flex flex-wrap gap-2">
                           <button

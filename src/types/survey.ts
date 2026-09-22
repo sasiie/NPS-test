@@ -1,10 +1,11 @@
-export type QuestionType = "scale" | "text";
+export type QuestionType = "scale" | "text" | "multiple-choice";
 
 export type SurveyQuestion = {
   id: string;
   text: string;
   type: QuestionType;
   required?: boolean;
+  options?: string[];
 };
 
 export type SurveySection = {
