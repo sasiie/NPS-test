@@ -18,6 +18,8 @@ type Question = {
   active: boolean;
   scale_max: 5 | 10;
   options: string[];
+  show_if_question_id: string | null;
+  show_if_values: string[];
 };
 
 const sectionOptions = [
@@ -42,6 +44,8 @@ export default function QuestionsPage() {
   const [editedScaleMax, setEditedScaleMax] = useState<5 | 10>(10);
   const [editedRequired, setEditedRequired] = useState(true);
   const [editedOptions, setEditedOptions] = useState<string[]>([]);
+  const [editedShowIfQuestionId, setEditedShowIfQuestionId] = useState("");
+  const [editedShowIfValues, setEditedShowIfValues] = useState<string[]>([]);
   const [isSaving, setIsSaving] = useState(false);
 
   // Lägg till fråga
@@ -52,6 +56,8 @@ export default function QuestionsPage() {
   const [newRequired, setNewRequired] = useState(true);
   const [newScaleMax, setNewScaleMax] = useState<5 | 10>(10);
   const [newOptions, setNewOptions] = useState<string[]>(["", ""]);
+  const [newShowIfQuestionId, setNewShowIfQuestionId] = useState("");
+  const [newShowIfValues, setNewShowIfValues] = useState<string[]>([]);
   const [isAdding, setIsAdding] = useState(false);
 
   const [questionToDelete, setQuestionToDelete] = useState<Question | null>(
@@ -85,6 +91,8 @@ export default function QuestionsPage() {
       const normalizedQuestions = (data ?? []).map((question) => ({
         ...question,
         options: question.options ?? [],
+        show_if_question_id: question.show_if_question_id ?? null,
+        show_if_values: question.show_if_values ?? [],
       })) as Question[];
 
       setQuestions(normalizedQuestions);
@@ -107,6 +115,8 @@ export default function QuestionsPage() {
           : ["", ""]
         : [],
     );
+    setEditedShowIfQuestionId(question.show_if_question_id ?? "");
+    setEditedShowIfValues(question.show_if_values ?? []);
     setError("");
   }
 
@@ -117,6 +127,8 @@ export default function QuestionsPage() {
     setEditedScaleMax(10);
     setEditedRequired(true);
     setEditedOptions([]);
+    setEditedShowIfQuestionId("");
+    setEditedShowIfValues([]);
   }
 
   function updateNewOption(index: number, value: string) {
@@ -144,6 +156,17 @@ export default function QuestionsPage() {
   function removeEditedOption(index: number) {
     setEditedOptions((previous) =>
       previous.filter((_, optionIndex) => optionIndex !== index),
+    );
+  }
+
+  function toggleValue(
+    value: string,
+    setter: React.Dispatch<React.SetStateAction<string[]>>,
+  ) {
+    setter((previous) =>
+      previous.includes(value)
+        ? previous.filter((item) => item !== value)
+        : [...previous, value],
     );
   }
 
@@ -179,6 +202,8 @@ export default function QuestionsPage() {
           required: editedRequired,
           scale_max: editedScaleMax,
           options: cleanedOptions,
+          show_if_question_id: editedShowIfQuestionId || null,
+          show_if_values: editedShowIfQuestionId ? editedShowIfValues : [],
         })
         .eq("id", question.id);
 
@@ -196,6 +221,10 @@ export default function QuestionsPage() {
                 required: editedRequired,
                 scale_max: editedScaleMax,
                 options: cleanedOptions,
+                show_if_question_id: editedShowIfQuestionId || null,
+                show_if_values: editedShowIfQuestionId
+                  ? editedShowIfValues
+                  : [],
               }
             : item,
         ),
@@ -286,6 +315,8 @@ export default function QuestionsPage() {
           scale_max: newScaleMax,
           options: cleanedOptions,
           active: true,
+          show_if_question_id: newShowIfQuestionId || null,
+          show_if_values: newShowIfQuestionId ? newShowIfValues : [],
         })
         .select()
         .single();
@@ -299,6 +330,8 @@ export default function QuestionsPage() {
         {
           ...(data as Question),
           options: data.options ?? [],
+          show_if_question_id: data.show_if_question_id ?? null,
+          show_if_values: data.show_if_values ?? [],
         },
       ]);
 
@@ -308,6 +341,8 @@ export default function QuestionsPage() {
       setNewRequired(true);
       setNewScaleMax(10);
       setNewOptions(["", ""]);
+      setNewShowIfQuestionId("");
+      setNewShowIfValues([]);
       setShowAddForm(false);
     } catch (error) {
       console.error(error);
@@ -549,6 +584,83 @@ export default function QuestionsPage() {
               </div>
             )}
 
+            {/* VILLKORAD FÖLJDFRÅGA */}
+            <div className="mt-6 rounded-2xl border border-slate-200 bg-slate-50 p-5">
+              <p className="font-semibold text-slate-900">
+                Villkorad följdfråga
+              </p>
+              <p className="mt-1 text-sm text-slate-500">
+                Välj en tidigare skalfråga om denna fråga bara ska visas vid
+                vissa svar.
+              </p>
+              <select
+                value={newShowIfQuestionId}
+                onChange={(event) => {
+                  setNewShowIfQuestionId(event.target.value);
+                  setNewShowIfValues([]);
+                }}
+                className="mt-4 w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-slate-900 outline-none focus:border-indigo-500 focus:ring-4 focus:ring-indigo-100"
+              >
+                <option value="">Alltid visa frågan</option>
+                {questions
+                  .filter((q) => q.type === "scale")
+                  .map((q) => (
+                    <option key={q.id} value={q.question_id}>
+                      #{q.position} – {q.text}
+                    </option>
+                  ))}
+              </select>
+
+              {newShowIfQuestionId &&
+                (() => {
+                  const parent = questions.find(
+                    (q) => q.question_id === newShowIfQuestionId,
+                  );
+                  if (!parent) return null;
+                  const values =
+                    parent.scale_max === 5
+                      ? ["1", "2", "3", "4", "5"]
+                      : [
+                          "0",
+                          "1",
+                          "2",
+                          "3",
+                          "4",
+                          "5",
+                          "6",
+                          "7",
+                          "8",
+                          "9",
+                          "10",
+                        ];
+                  return (
+                    <div className="mt-4">
+                      <p className="text-sm font-medium text-slate-700">
+                        Visa när svaret är:
+                      </p>
+                      <div className="mt-3 flex flex-wrap gap-2">
+                        {values.map((value) => (
+                          <button
+                            key={value}
+                            type="button"
+                            onClick={() =>
+                              toggleValue(value, setNewShowIfValues)
+                            }
+                            className={`h-10 min-w-10 rounded-lg border px-3 text-sm font-semibold transition ${
+                              newShowIfValues.includes(value)
+                                ? "border-indigo-600 bg-indigo-600 text-white"
+                                : "border-slate-200 bg-white text-slate-700 hover:border-indigo-300"
+                            }`}
+                          >
+                            {value}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  );
+                })()}
+            </div>
+
             <label className="mt-5 flex items-center gap-3 text-sm font-medium text-slate-700">
               <input
                 type="checkbox"
@@ -726,6 +838,89 @@ export default function QuestionsPage() {
                           </div>
                         )}
 
+                        {/* REDIGERA VILLKORAD FÖLJDFRÅGA */}
+                        <div className="mt-5 rounded-2xl border border-slate-200 bg-slate-50 p-5">
+                          <p className="font-semibold text-slate-900">
+                            Villkorad följdfråga
+                          </p>
+                          <select
+                            value={editedShowIfQuestionId}
+                            onChange={(event) => {
+                              setEditedShowIfQuestionId(event.target.value);
+                              setEditedShowIfValues([]);
+                            }}
+                            className="mt-3 w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-slate-900 outline-none focus:border-indigo-500 focus:ring-4 focus:ring-indigo-100"
+                          >
+                            <option value="">Alltid visa frågan</option>
+                            {questions
+                              .filter(
+                                (candidate) =>
+                                  candidate.type === "scale" &&
+                                  candidate.id !== question.id,
+                              )
+                              .map((candidate) => (
+                                <option
+                                  key={candidate.id}
+                                  value={candidate.question_id}
+                                >
+                                  #{candidate.position} – {candidate.text}
+                                </option>
+                              ))}
+                          </select>
+
+                          {editedShowIfQuestionId &&
+                            (() => {
+                              const parent = questions.find(
+                                (q) => q.question_id === editedShowIfQuestionId,
+                              );
+                              if (!parent) return null;
+                              const values =
+                                parent.scale_max === 5
+                                  ? ["1", "2", "3", "4", "5"]
+                                  : [
+                                      "0",
+                                      "1",
+                                      "2",
+                                      "3",
+                                      "4",
+                                      "5",
+                                      "6",
+                                      "7",
+                                      "8",
+                                      "9",
+                                      "10",
+                                    ];
+                              return (
+                                <div className="mt-4">
+                                  <p className="text-sm font-medium text-slate-700">
+                                    Visa när svaret är:
+                                  </p>
+                                  <div className="mt-3 flex flex-wrap gap-2">
+                                    {values.map((value) => (
+                                      <button
+                                        key={value}
+                                        type="button"
+                                        onClick={() =>
+                                          toggleValue(
+                                            value,
+                                            setEditedShowIfValues,
+                                          )
+                                        }
+                                        className={`h-10 min-w-10 rounded-lg border px-3 text-sm font-semibold transition ${
+                                          editedShowIfValues.includes(value)
+                                            ? "border-indigo-600 bg-indigo-600 text-white"
+                                            : "border-slate-200 bg-white text-slate-700 hover:border-indigo-300"
+                                        }`}
+                                      >
+                                        {value}
+                                      </button>
+                                    ))}
+                                  </div>
+                                </div>
+                              );
+                            })()}
+                        </div>
+
                         {/* REDIGERA OBLIGATORISK */}
                         <label className="mt-4 flex items-center gap-3 text-sm font-medium text-slate-700">
                           <input
@@ -779,6 +974,12 @@ export default function QuestionsPage() {
                           >
                             {question.required ? "Obligatorisk" : "Valfri"}
                           </span>
+
+                          {question.show_if_question_id && (
+                            <span className="rounded-full bg-violet-50 px-3 py-1 text-violet-700">
+                              Villkorad
+                            </span>
+                          )}
 
                           {!question.active && (
                             <span className="rounded-full bg-amber-50 px-3 py-1 text-amber-700">
