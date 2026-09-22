@@ -13,6 +13,7 @@ type DatabaseQuestion = {
   position: number;
   required: boolean;
   active: boolean;
+  scale_max: 5 | 10;
 };
 
 type SurveySection = {
@@ -118,7 +119,9 @@ export default function Home() {
             Enkäten kunde inte laddas
           </h1>
 
-          <p className="mt-3 text-slate-600">Försök igen om en liten stund.</p>
+          <p className="mt-3 text-slate-600">
+            Försök igen om en liten stund.
+          </p>
         </div>
       </main>
     );
@@ -173,8 +176,8 @@ export default function Home() {
                   </p>
 
                   <p className="mt-1 text-sm leading-6 text-slate-600">
-                    Enkäten består av korta frågor där du framför allt svarar på
-                    en skala från 0 till 10.
+                    Enkäten består av korta frågor med både skalfrågor och
+                    möjlighet att lämna egna kommentarer.
                   </p>
                 </div>
               </div>
@@ -370,10 +373,21 @@ export default function Home() {
                   </p>
                 )}
 
+                {/* SKALFRÅGA */}
                 {question.type === "scale" && (
                   <div className="mt-6">
-                    <div className="grid grid-cols-6 gap-2 sm:grid-cols-11">
-                      {Array.from({ length: 11 }, (_, number) => {
+                    <div
+                      className={
+                        question.scale_max === 5
+                          ? "grid grid-cols-5 gap-2"
+                          : "grid grid-cols-6 gap-2 sm:grid-cols-11"
+                      }
+                    >
+                      {(
+                        question.scale_max === 5
+                          ? [1, 2, 3, 4, 5]
+                          : [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
+                      ).map((number) => {
                         const selected =
                           answers[question.question_id] === String(number);
 
@@ -403,12 +417,22 @@ export default function Home() {
                     </div>
 
                     <div className="mt-3 flex justify-between text-xs text-slate-500">
-                      <span>Inte alls</span>
-                      <span>I mycket hög grad</span>
+                      <span>
+                        {question.scale_max === 5
+                          ? "Instämmer inte alls"
+                          : "Inte alls"}
+                      </span>
+
+                      <span>
+                        {question.scale_max === 5
+                          ? "Instämmer helt"
+                          : "I mycket hög grad"}
+                      </span>
                     </div>
                   </div>
                 )}
 
+                {/* TEXTFRÅGA */}
                 {question.type === "text" && (
                   <textarea
                     value={answers[question.question_id] ?? ""}

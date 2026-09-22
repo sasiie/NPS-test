@@ -14,6 +14,7 @@ type Question = {
   position: number;
   required: boolean;
   active: boolean;
+  scale_max: 5 | 10;
 };
 
 const sectionOptions = [
@@ -31,16 +32,21 @@ export default function QuestionsPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState("");
 
+  // Redigera fråga
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editedText, setEditedText] = useState("");
   const [editedSection, setEditedSection] = useState("");
+  const [editedScaleMax, setEditedScaleMax] = useState<5 | 10>(10);
+  const [editedRequired, setEditedRequired] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
 
+  // Lägg till fråga
   const [showAddForm, setShowAddForm] = useState(false);
   const [newText, setNewText] = useState("");
   const [newType, setNewType] = useState<"scale" | "text">("scale");
   const [newSection, setNewSection] = useState("enps");
   const [newRequired, setNewRequired] = useState(true);
+  const [newScaleMax, setNewScaleMax] = useState<5 | 10>(10);
   const [isAdding, setIsAdding] = useState(false);
 
   const [questionToDelete, setQuestionToDelete] = useState<Question | null>(
@@ -82,6 +88,8 @@ export default function QuestionsPage() {
     setEditingId(question.id);
     setEditedText(question.text);
     setEditedSection(question.section);
+    setEditedScaleMax(question.scale_max);
+    setEditedRequired(question.required);
     setError("");
   }
 
@@ -89,6 +97,8 @@ export default function QuestionsPage() {
     setEditingId(null);
     setEditedText("");
     setEditedSection("");
+    setEditedScaleMax(10);
+    setEditedRequired(true);
   }
 
   async function saveQuestion(question: Question) {
@@ -108,6 +118,8 @@ export default function QuestionsPage() {
         .update({
           text: trimmedText,
           section: editedSection,
+          required: editedRequired,
+          scale_max: editedScaleMax,
         })
         .eq("id", question.id);
 
@@ -122,6 +134,8 @@ export default function QuestionsPage() {
                 ...item,
                 text: trimmedText,
                 section: editedSection,
+                required: editedRequired,
+                scale_max: editedScaleMax,
               }
             : item,
         ),
@@ -130,6 +144,8 @@ export default function QuestionsPage() {
       setEditingId(null);
       setEditedText("");
       setEditedSection("");
+      setEditedScaleMax(10);
+      setEditedRequired(true);
     } catch (error) {
       console.error(error);
       setError("Kunde inte spara frågan.");
@@ -199,6 +215,7 @@ export default function QuestionsPage() {
           section: newSection,
           position: nextPosition,
           required: newRequired,
+          scale_max: newScaleMax,
           active: true,
         })
         .select()
@@ -214,6 +231,7 @@ export default function QuestionsPage() {
       setNewType("scale");
       setNewSection("enps");
       setNewRequired(true);
+      setNewScaleMax(10);
       setShowAddForm(false);
     } catch (error) {
       console.error(error);
@@ -264,6 +282,7 @@ export default function QuestionsPage() {
     <main className="min-h-screen bg-slate-50 px-4 py-10 sm:px-6">
       <div className="mx-auto max-w-4xl">
         <AdminNav />
+
         <div className="mb-8 flex flex-col gap-5 sm:flex-row sm:items-start sm:justify-between">
           <div>
             <p className="text-sm font-semibold text-indigo-600">
@@ -295,6 +314,7 @@ export default function QuestionsPage() {
           </div>
         )}
 
+        {/* LÄGG TILL FRÅGA */}
         {showAddForm && (
           <div className="mb-8 rounded-2xl border border-indigo-200 bg-white p-6 shadow-sm">
             <h2 className="text-xl font-bold text-slate-900">
@@ -327,7 +347,7 @@ export default function QuestionsPage() {
                   }
                   className="mt-2 w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-slate-900 outline-none focus:border-indigo-500 focus:ring-4 focus:ring-indigo-100"
                 >
-                  <option value="scale">Skala 0–10</option>
+                  <option value="scale">Skala</option>
                   <option value="text">Text</option>
                 </select>
               </div>
@@ -350,6 +370,39 @@ export default function QuestionsPage() {
                 </select>
               </div>
             </div>
+
+            {/* SKALVAL */}
+            {newType === "scale" && (
+              <div className="mt-5">
+                <p className="text-sm font-medium text-slate-700">Skala</p>
+
+                <div className="mt-2 flex gap-3">
+                  <button
+                    type="button"
+                    onClick={() => setNewScaleMax(5)}
+                    className={`rounded-xl border px-5 py-3 font-semibold transition ${
+                      newScaleMax === 5
+                        ? "border-indigo-600 bg-indigo-600 text-white"
+                        : "border-slate-200 bg-white text-slate-700 hover:bg-slate-50"
+                    }`}
+                  >
+                    1–5
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setNewScaleMax(10)}
+                    className={`rounded-xl border px-5 py-3 font-semibold transition ${
+                      newScaleMax === 10
+                        ? "border-indigo-600 bg-indigo-600 text-white"
+                        : "border-slate-200 bg-white text-slate-700 hover:bg-slate-50"
+                    }`}
+                  >
+                    0–10
+                  </button>
+                </div>
+              </div>
+            )}
 
             <label className="mt-5 flex items-center gap-3 text-sm font-medium text-slate-700">
               <input
@@ -383,6 +436,7 @@ export default function QuestionsPage() {
           </div>
         )}
 
+        {/* FRÅGOR */}
         <div className="space-y-4">
           {questions.map((question) => {
             const isEditing = editingId === question.id;
@@ -434,7 +488,55 @@ export default function QuestionsPage() {
                           </select>
                         </div>
 
-                        <div className="mt-4 flex gap-2">
+                        {/* REDIGERA SKALA */}
+                        {question.type === "scale" && (
+                          <div className="mt-4">
+                            <p className="text-sm font-medium text-slate-700">
+                              Skala
+                            </p>
+
+                            <div className="mt-2 flex gap-3">
+                              <button
+                                type="button"
+                                onClick={() => setEditedScaleMax(5)}
+                                className={`rounded-xl border px-5 py-3 text-sm font-semibold transition ${
+                                  editedScaleMax === 5
+                                    ? "border-indigo-600 bg-indigo-600 text-white"
+                                    : "border-slate-200 bg-white text-slate-700 hover:bg-slate-50"
+                                }`}
+                              >
+                                1–5
+                              </button>
+
+                              <button
+                                type="button"
+                                onClick={() => setEditedScaleMax(10)}
+                                className={`rounded-xl border px-5 py-3 text-sm font-semibold transition ${
+                                  editedScaleMax === 10
+                                    ? "border-indigo-600 bg-indigo-600 text-white"
+                                    : "border-slate-200 bg-white text-slate-700 hover:bg-slate-50"
+                                }`}
+                              >
+                                0–10
+                              </button>
+                            </div>
+                          </div>
+                        )}
+
+                        {/* REDIGERA OBLIGATORISK */}
+                        <label className="mt-4 flex items-center gap-3 text-sm font-medium text-slate-700">
+                          <input
+                            type="checkbox"
+                            checked={editedRequired}
+                            onChange={(event) =>
+                              setEditedRequired(event.target.checked)
+                            }
+                            className="h-4 w-4"
+                          />
+                          Obligatorisk fråga
+                        </label>
+
+                        <div className="mt-5 flex gap-2">
                           <button
                             type="button"
                             onClick={() => saveQuestion(question)}
@@ -462,14 +564,22 @@ export default function QuestionsPage() {
 
                         <div className="mt-3 flex flex-wrap gap-2 text-xs">
                           <span className="rounded-full bg-slate-100 px-3 py-1 text-slate-600">
-                            {question.type === "scale" ? "Skala 0–10" : "Text"}
+                            {question.type === "scale"
+                              ? question.scale_max === 5
+                                ? "Skala 1–5"
+                                : "Skala 0–10"
+                              : "Text"}
                           </span>
 
-                          {question.required && (
-                            <span className="rounded-full bg-indigo-50 px-3 py-1 text-indigo-700">
-                              Obligatorisk
-                            </span>
-                          )}
+                          <span
+                            className={`rounded-full px-3 py-1 ${
+                              question.required
+                                ? "bg-indigo-50 text-indigo-700"
+                                : "bg-slate-100 text-slate-500"
+                            }`}
+                          >
+                            {question.required ? "Obligatorisk" : "Valfri"}
+                          </span>
 
                           {!question.active && (
                             <span className="rounded-full bg-amber-50 px-3 py-1 text-amber-700">
@@ -521,6 +631,7 @@ export default function QuestionsPage() {
         </div>
       </div>
 
+      {/* TA BORT */}
       {questionToDelete && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 px-4">
           <div className="w-full max-w-md rounded-2xl bg-white p-6 shadow-xl">
