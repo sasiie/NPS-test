@@ -8,12 +8,13 @@ type DatabaseQuestion = {
   id: string;
   question_id: string;
   text: string;
-  type: "scale" | "text";
+  type: "scale" | "text" | "multiple-choice";
   section: string;
   position: number;
   required: boolean;
   active: boolean;
   scale_max: 5 | 10;
+  options: string[];
 };
 
 type SurveySection = {
@@ -71,7 +72,10 @@ export default function Home() {
         return;
       }
 
-      const questions = (data ?? []) as DatabaseQuestion[];
+      const questions = (data ?? []).map((question) => ({
+        ...question,
+        options: question.options ?? [],
+      })) as DatabaseQuestion[];
 
       const sections: SurveySection[] = [];
 
@@ -119,9 +123,7 @@ export default function Home() {
             Enkäten kunde inte laddas
           </h1>
 
-          <p className="mt-3 text-slate-600">
-            Försök igen om en liten stund.
-          </p>
+          <p className="mt-3 text-slate-600">Försök igen om en liten stund.</p>
         </div>
       </main>
     );
@@ -176,8 +178,8 @@ export default function Home() {
                   </p>
 
                   <p className="mt-1 text-sm leading-6 text-slate-600">
-                    Enkäten består av korta frågor med både skalfrågor och
-                    möjlighet att lämna egna kommentarer.
+                    Enkäten består av korta frågor med skalfrågor,
+                    flervalsfrågor och möjlighet att lämna egna kommentarer.
                   </p>
                 </div>
               </div>
@@ -383,10 +385,9 @@ export default function Home() {
                           : "grid grid-cols-6 gap-2 sm:grid-cols-11"
                       }
                     >
-                      {(
-                        question.scale_max === 5
-                          ? [1, 2, 3, 4, 5]
-                          : [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
+                      {(question.scale_max === 5
+                        ? [1, 2, 3, 4, 5]
+                        : [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
                       ).map((number) => {
                         const selected =
                           answers[question.question_id] === String(number);
@@ -429,6 +430,50 @@ export default function Home() {
                           : "I mycket hög grad"}
                       </span>
                     </div>
+                  </div>
+                )}
+
+                {/* FLERVALSFRÅGA */}
+                {question.type === "multiple-choice" && (
+                  <div className="mt-5 space-y-3">
+                    {question.options.map((option, index) => {
+                      const selected = answers[question.question_id] === option;
+
+                      return (
+                        <button
+                          key={`${option}-${index}`}
+                          type="button"
+                          aria-pressed={selected}
+                          onClick={() =>
+                            setAnswers((previous) => ({
+                              ...previous,
+                              [question.question_id]: option,
+                            }))
+                          }
+                          className={`flex w-full items-center gap-3 rounded-xl border p-4 text-left transition ${
+                            selected
+                              ? "border-indigo-600 bg-indigo-50 text-indigo-900 ring-1 ring-indigo-600"
+                              : hasError
+                                ? "border-red-300 bg-white text-slate-700 hover:bg-red-50"
+                                : "border-slate-200 bg-white text-slate-700 hover:border-indigo-300 hover:bg-indigo-50"
+                          }`}
+                        >
+                          <span
+                            className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-full border ${
+                              selected
+                                ? "border-indigo-600 bg-indigo-600"
+                                : "border-slate-300 bg-white"
+                            }`}
+                          >
+                            {selected && (
+                              <span className="h-2 w-2 rounded-full bg-white" />
+                            )}
+                          </span>
+
+                          <span className="font-medium">{option}</span>
+                        </button>
+                      );
+                    })}
                   </div>
                 )}
 
