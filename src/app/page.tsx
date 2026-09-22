@@ -15,6 +15,8 @@ type DatabaseQuestion = {
   active: boolean;
   scale_max: 5 | 10;
   options: string[];
+  show_if_question_id: string | null;
+  show_if_values: string[];
 };
 
 type SurveySection = {
@@ -75,6 +77,8 @@ export default function Home() {
       const questions = (data ?? []).map((question) => ({
         ...question,
         options: question.options ?? [],
+        show_if_question_id: question.show_if_question_id ?? null,
+        show_if_values: question.show_if_values ?? [],
       })) as DatabaseQuestion[];
 
       const sections: SurveySection[] = [];
@@ -106,6 +110,43 @@ export default function Home() {
 
     loadQuestions();
   }, []);
+
+  function isQuestionVisible(
+    question: DatabaseQuestion,
+    currentAnswers: SurveyAnswers = answers,
+  ) {
+    if (!question.show_if_question_id) return true;
+    const parentAnswer = currentAnswers[question.show_if_question_id];
+    return (
+      parentAnswer !== undefined &&
+      question.show_if_values.includes(parentAnswer)
+    );
+  }
+
+  function updateAnswer(questionId: string, value: string) {
+    setAnswers((previous) => {
+      const nextAnswers: SurveyAnswers = { ...previous, [questionId]: value };
+      let changed = true;
+
+      while (changed) {
+        changed = false;
+        for (const section of surveySections) {
+          for (const question of section.questions) {
+            if (
+              question.show_if_question_id &&
+              !isQuestionVisible(question, nextAnswers) &&
+              nextAnswers[question.question_id] !== undefined
+            ) {
+              delete nextAnswers[question.question_id];
+              changed = true;
+            }
+          }
+        }
+      }
+
+      return nextAnswers;
+    });
+  }
 
   if (isLoading) {
     return (
@@ -226,7 +267,11 @@ export default function Home() {
   const isFirstStep = currentStep === 0;
   const isLastStep = currentStep === surveySections.length - 1;
 
-  const allRequiredAnswered = currentSection.questions
+  const visibleQuestions = currentSection.questions.filter((question) =>
+    isQuestionVisible(question),
+  );
+
+  const allRequiredAnswered = visibleQuestions
     .filter((question) => question.required)
     .every((question) => {
       const answer = answers[question.question_id];
@@ -265,12 +310,25 @@ export default function Home() {
       setIsSubmitting(true);
       setShowErrors(false);
 
+      const visibleQuestionIds = new Set(
+        surveySections
+          .flatMap((section) => section.questions)
+          .filter((question) => isQuestionVisible(question))
+          .map((question) => question.question_id),
+      );
+
+      const answersToSubmit = Object.fromEntries(
+        Object.entries(answers).filter(([questionId]) =>
+          visibleQuestionIds.has(questionId),
+        ),
+      );
+
       const response = await fetch("/api/responses", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify(answers),
+        body: JSON.stringify(answersToSubmit),
       });
 
       if (!response.ok) {
@@ -343,7 +401,7 @@ export default function Home() {
         </header>
 
         <div className="space-y-5">
-          {currentSection.questions.map((question) => {
+          {visibleQuestions.map((question) => {
             const answer = answers[question.question_id];
 
             const hasError =
@@ -398,10 +456,7 @@ export default function Home() {
                             type="button"
                             aria-pressed={selected}
                             onClick={() =>
-                              setAnswers((previous) => ({
-                                ...previous,
-                                [question.question_id]: String(number),
-                              }))
+                              updateAnswer(question.question_id, String(number))
                             }
                             className={`aspect-square rounded-xl border text-sm font-semibold transition ${
                               selected
@@ -445,10 +500,7 @@ export default function Home() {
                           type="button"
                           aria-pressed={selected}
                           onClick={() =>
-                            setAnswers((previous) => ({
-                              ...previous,
-                              [question.question_id]: option,
-                            }))
+                            updateAnswer(question.question_id, option)
                           }
                           className={`flex w-full items-center gap-3 rounded-xl border p-4 text-left transition ${
                             selected
@@ -482,10 +534,7 @@ export default function Home() {
                   <textarea
                     value={answers[question.question_id] ?? ""}
                     onChange={(event) =>
-                      setAnswers((previous) => ({
-                        ...previous,
-                        [question.question_id]: event.target.value,
-                      }))
+                      updateAnswer(question.question_id, event.target.value)
                     }
                     className={`mt-5 min-h-36 w-full resize-y rounded-xl border bg-white p-4 text-slate-900 outline-none transition placeholder:text-slate-400 focus:ring-4 ${
                       hasError
