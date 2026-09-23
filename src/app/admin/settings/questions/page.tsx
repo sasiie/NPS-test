@@ -42,6 +42,7 @@ export default function QuestionsPage() {
   const [error, setError] = useState("");
 
   // Redigera fråga
+  const [showHiddenQuestions, setShowHiddenQuestions] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editedText, setEditedText] = useState("");
   const [editedSection, setEditedSection] = useState("");
@@ -441,6 +442,14 @@ export default function QuestionsPage() {
           </div>
         )}
 
+        <button
+          type="button"
+          onClick={() => setShowHiddenQuestions((previous) => !previous)}
+          className="shrink-0 rounded-xl border border-slate-200 bg-white px-5 py-3 font-semibold text-slate-700 shadow-sm transition hover:bg-slate-50"
+        >
+          {showHiddenQuestions ? "Dölj dolda frågor" : "Visa dolda frågor"}
+        </button>
+
         {/* LÄGG TILL FRÅGA */}
         {showAddForm && (
           <div className="mb-8 rounded-2xl border border-indigo-200 bg-white p-6 shadow-sm">
@@ -699,356 +708,364 @@ export default function QuestionsPage() {
 
         {/* FRÅGOR */}
         <div className="space-y-4">
-          {questions.map((question) => {
-            const isEditing = editingId === question.id;
+          {questions
+            .filter((question) => showHiddenQuestions || question.active)
+            .map((question) => {
+              const isEditing = editingId === question.id;
 
-            return (
-              <div
-                key={question.id}
-                className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm"
-              >
-                <div className="flex items-start justify-between gap-4">
-                  <div className="min-w-0 flex-1">
-                    <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">
-                      {question.section}
-                    </p>
+              return (
+                <div
+                  key={question.id}
+                  className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm"
+                >
+                  <div className="flex items-start justify-between gap-4">
+                    <div className="min-w-0 flex-1">
+                      <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">
+                        {question.section}
+                      </p>
 
-                    {isEditing ? (
-                      <div className="mt-3">
-                        <div>
-                          <label className="text-sm font-medium text-slate-700">
-                            Frågetext
-                          </label>
+                      {isEditing ? (
+                        <div className="mt-3">
+                          <div>
+                            <label className="text-sm font-medium text-slate-700">
+                              Frågetext
+                            </label>
 
-                          <textarea
-                            value={editedText}
-                            onChange={(event) =>
-                              setEditedText(event.target.value)
-                            }
-                            className="mt-2 min-h-28 w-full resize-y rounded-xl border border-slate-200 p-4 text-slate-900 outline-none transition focus:border-indigo-500 focus:ring-4 focus:ring-indigo-100"
-                          />
-                        </div>
-
-                        <div className="mt-4">
-                          <label className="text-sm font-medium text-slate-700">
-                            Sektion
-                          </label>
-
-                          <select
-                            value={editedSection}
-                            onChange={(event) =>
-                              setEditedSection(event.target.value)
-                            }
-                            className="mt-2 w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-slate-900 outline-none focus:border-indigo-500 focus:ring-4 focus:ring-indigo-100"
-                          >
-                            {sectionOptions.map((section) => (
-                              <option key={section.value} value={section.value}>
-                                {section.label}
-                              </option>
-                            ))}
-                          </select>
-                        </div>
-
-                        {/* REDIGERA SKALA */}
-                        {question.type === "scale" && (
-                          <div className="mt-4">
-                            <p className="text-sm font-medium text-slate-700">
-                              Skala
-                            </p>
-
-                            <div className="mt-2 flex gap-3">
-                              <button
-                                type="button"
-                                onClick={() => setEditedScaleMax(5)}
-                                className={`rounded-xl border px-5 py-3 text-sm font-semibold transition ${
-                                  editedScaleMax === 5
-                                    ? "border-indigo-600 bg-indigo-600 text-white"
-                                    : "border-slate-200 bg-white text-slate-700 hover:bg-slate-50"
-                                }`}
-                              >
-                                1–5
-                              </button>
-
-                              <button
-                                type="button"
-                                onClick={() => setEditedScaleMax(10)}
-                                className={`rounded-xl border px-5 py-3 text-sm font-semibold transition ${
-                                  editedScaleMax === 10
-                                    ? "border-indigo-600 bg-indigo-600 text-white"
-                                    : "border-slate-200 bg-white text-slate-700 hover:bg-slate-50"
-                                }`}
-                              >
-                                0–10
-                              </button>
-                            </div>
+                            <textarea
+                              value={editedText}
+                              onChange={(event) =>
+                                setEditedText(event.target.value)
+                              }
+                              className="mt-2 min-h-28 w-full resize-y rounded-xl border border-slate-200 p-4 text-slate-900 outline-none transition focus:border-indigo-500 focus:ring-4 focus:ring-indigo-100"
+                            />
                           </div>
-                        )}
 
-                        {/* REDIGERA FLERVAL */}
-                        {question.type === "multiple-choice" && (
                           <div className="mt-4">
-                            <p className="text-sm font-medium text-slate-700">
-                              Svarsalternativ
-                            </p>
+                            <label className="text-sm font-medium text-slate-700">
+                              Sektion
+                            </label>
 
-                            <p className="mt-1 text-sm text-slate-500">
-                              Minst två alternativ krävs.
-                            </p>
-
-                            <div className="mt-3 space-y-3">
-                              {editedOptions.map((option, index) => (
-                                <div
-                                  key={index}
-                                  className="flex items-center gap-2"
+                            <select
+                              value={editedSection}
+                              onChange={(event) =>
+                                setEditedSection(event.target.value)
+                              }
+                              className="mt-2 w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-slate-900 outline-none focus:border-indigo-500 focus:ring-4 focus:ring-indigo-100"
+                            >
+                              {sectionOptions.map((section) => (
+                                <option
+                                  key={section.value}
+                                  value={section.value}
                                 >
-                                  <input
-                                    type="text"
-                                    value={option}
-                                    onChange={(event) =>
-                                      updateEditedOption(
-                                        index,
-                                        event.target.value,
-                                      )
-                                    }
-                                    placeholder={`Alternativ ${index + 1}`}
-                                    className="w-full rounded-xl border border-slate-200 px-4 py-3 text-slate-900 outline-none focus:border-indigo-500 focus:ring-4 focus:ring-indigo-100"
-                                  />
-
-                                  {editedOptions.length > 2 && (
-                                    <button
-                                      type="button"
-                                      onClick={() => removeEditedOption(index)}
-                                      className="shrink-0 rounded-xl border border-red-200 px-4 py-3 text-sm font-semibold text-red-600 transition hover:bg-red-50"
-                                    >
-                                      Ta bort
-                                    </button>
-                                  )}
-                                </div>
+                                  {section.label}
+                                </option>
                               ))}
+                            </select>
+                          </div>
+
+                          {/* REDIGERA SKALA */}
+                          {question.type === "scale" && (
+                            <div className="mt-4">
+                              <p className="text-sm font-medium text-slate-700">
+                                Skala
+                              </p>
+
+                              <div className="mt-2 flex gap-3">
+                                <button
+                                  type="button"
+                                  onClick={() => setEditedScaleMax(5)}
+                                  className={`rounded-xl border px-5 py-3 text-sm font-semibold transition ${
+                                    editedScaleMax === 5
+                                      ? "border-indigo-600 bg-indigo-600 text-white"
+                                      : "border-slate-200 bg-white text-slate-700 hover:bg-slate-50"
+                                  }`}
+                                >
+                                  1–5
+                                </button>
+
+                                <button
+                                  type="button"
+                                  onClick={() => setEditedScaleMax(10)}
+                                  className={`rounded-xl border px-5 py-3 text-sm font-semibold transition ${
+                                    editedScaleMax === 10
+                                      ? "border-indigo-600 bg-indigo-600 text-white"
+                                      : "border-slate-200 bg-white text-slate-700 hover:bg-slate-50"
+                                  }`}
+                                >
+                                  0–10
+                                </button>
+                              </div>
                             </div>
+                          )}
+
+                          {/* REDIGERA FLERVAL */}
+                          {question.type === "multiple-choice" && (
+                            <div className="mt-4">
+                              <p className="text-sm font-medium text-slate-700">
+                                Svarsalternativ
+                              </p>
+
+                              <p className="mt-1 text-sm text-slate-500">
+                                Minst två alternativ krävs.
+                              </p>
+
+                              <div className="mt-3 space-y-3">
+                                {editedOptions.map((option, index) => (
+                                  <div
+                                    key={index}
+                                    className="flex items-center gap-2"
+                                  >
+                                    <input
+                                      type="text"
+                                      value={option}
+                                      onChange={(event) =>
+                                        updateEditedOption(
+                                          index,
+                                          event.target.value,
+                                        )
+                                      }
+                                      placeholder={`Alternativ ${index + 1}`}
+                                      className="w-full rounded-xl border border-slate-200 px-4 py-3 text-slate-900 outline-none focus:border-indigo-500 focus:ring-4 focus:ring-indigo-100"
+                                    />
+
+                                    {editedOptions.length > 2 && (
+                                      <button
+                                        type="button"
+                                        onClick={() =>
+                                          removeEditedOption(index)
+                                        }
+                                        className="shrink-0 rounded-xl border border-red-200 px-4 py-3 text-sm font-semibold text-red-600 transition hover:bg-red-50"
+                                      >
+                                        Ta bort
+                                      </button>
+                                    )}
+                                  </div>
+                                ))}
+                              </div>
+
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  setEditedOptions((previous) => [
+                                    ...previous,
+                                    "",
+                                  ])
+                                }
+                                className="mt-3 rounded-xl border border-indigo-200 px-4 py-2 text-sm font-semibold text-indigo-700 transition hover:bg-indigo-50"
+                              >
+                                + Lägg till alternativ
+                              </button>
+                            </div>
+                          )}
+
+                          {/* REDIGERA VILLKORAD FÖLJDFRÅGA */}
+                          <div className="mt-5 rounded-2xl border border-slate-200 bg-slate-50 p-5">
+                            <p className="font-semibold text-slate-900">
+                              Villkorad följdfråga
+                            </p>
+                            <select
+                              value={editedShowIfQuestionId}
+                              onChange={(event) => {
+                                setEditedShowIfQuestionId(event.target.value);
+                                setEditedShowIfValues([]);
+                              }}
+                              className="mt-3 w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-slate-900 outline-none focus:border-indigo-500 focus:ring-4 focus:ring-indigo-100"
+                            >
+                              <option value="">Alltid visa frågan</option>
+                              {questions
+                                .filter(
+                                  (candidate) =>
+                                    candidate.type === "scale" &&
+                                    candidate.id !== question.id,
+                                )
+                                .map((candidate) => (
+                                  <option
+                                    key={candidate.id}
+                                    value={candidate.question_id}
+                                  >
+                                    #{candidate.position} – {candidate.text}
+                                  </option>
+                                ))}
+                            </select>
+
+                            {editedShowIfQuestionId &&
+                              (() => {
+                                const parent = questions.find(
+                                  (q) =>
+                                    q.question_id === editedShowIfQuestionId,
+                                );
+                                if (!parent) return null;
+                                const values =
+                                  parent.scale_max === 5
+                                    ? ["1", "2", "3", "4", "5"]
+                                    : [
+                                        "0",
+                                        "1",
+                                        "2",
+                                        "3",
+                                        "4",
+                                        "5",
+                                        "6",
+                                        "7",
+                                        "8",
+                                        "9",
+                                        "10",
+                                      ];
+                                return (
+                                  <div className="mt-4">
+                                    <p className="text-sm font-medium text-slate-700">
+                                      Visa när svaret är:
+                                    </p>
+                                    <div className="mt-3 flex flex-wrap gap-2">
+                                      {values.map((value) => (
+                                        <button
+                                          key={value}
+                                          type="button"
+                                          onClick={() =>
+                                            toggleValue(
+                                              value,
+                                              setEditedShowIfValues,
+                                            )
+                                          }
+                                          className={`h-10 min-w-10 rounded-lg border px-3 text-sm font-semibold transition ${
+                                            editedShowIfValues.includes(value)
+                                              ? "border-indigo-600 bg-indigo-600 text-white"
+                                              : "border-slate-200 bg-white text-slate-700 hover:border-indigo-300"
+                                          }`}
+                                        >
+                                          {value}
+                                        </button>
+                                      ))}
+                                    </div>
+                                  </div>
+                                );
+                              })()}
+                          </div>
+
+                          {/* REDIGERA OBLIGATORISK */}
+                          <label className="mt-4 flex items-center gap-3 text-sm font-medium text-slate-700">
+                            <input
+                              type="checkbox"
+                              checked={editedRequired}
+                              onChange={(event) =>
+                                setEditedRequired(event.target.checked)
+                              }
+                              className="h-4 w-4"
+                            />
+                            Obligatorisk fråga
+                          </label>
+
+                          <div className="mt-5 flex gap-2">
+                            <button
+                              type="button"
+                              onClick={() => saveQuestion(question)}
+                              disabled={isSaving}
+                              className="rounded-xl bg-indigo-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-indigo-700 disabled:cursor-not-allowed disabled:opacity-50"
+                            >
+                              {isSaving ? "Sparar..." : "Spara"}
+                            </button>
 
                             <button
                               type="button"
-                              onClick={() =>
-                                setEditedOptions((previous) => [
-                                  ...previous,
-                                  "",
-                                ])
-                              }
-                              className="mt-3 rounded-xl border border-indigo-200 px-4 py-2 text-sm font-semibold text-indigo-700 transition hover:bg-indigo-50"
+                              onClick={cancelEditing}
+                              disabled={isSaving}
+                              className="rounded-xl border border-slate-200 px-4 py-2 text-sm font-semibold text-slate-600 transition hover:bg-slate-50"
                             >
-                              + Lägg till alternativ
+                              Avbryt
                             </button>
                           </div>
-                        )}
-
-                        {/* REDIGERA VILLKORAD FÖLJDFRÅGA */}
-                        <div className="mt-5 rounded-2xl border border-slate-200 bg-slate-50 p-5">
-                          <p className="font-semibold text-slate-900">
-                            Villkorad följdfråga
-                          </p>
-                          <select
-                            value={editedShowIfQuestionId}
-                            onChange={(event) => {
-                              setEditedShowIfQuestionId(event.target.value);
-                              setEditedShowIfValues([]);
-                            }}
-                            className="mt-3 w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-slate-900 outline-none focus:border-indigo-500 focus:ring-4 focus:ring-indigo-100"
-                          >
-                            <option value="">Alltid visa frågan</option>
-                            {questions
-                              .filter(
-                                (candidate) =>
-                                  candidate.type === "scale" &&
-                                  candidate.id !== question.id,
-                              )
-                              .map((candidate) => (
-                                <option
-                                  key={candidate.id}
-                                  value={candidate.question_id}
-                                >
-                                  #{candidate.position} – {candidate.text}
-                                </option>
-                              ))}
-                          </select>
-
-                          {editedShowIfQuestionId &&
-                            (() => {
-                              const parent = questions.find(
-                                (q) => q.question_id === editedShowIfQuestionId,
-                              );
-                              if (!parent) return null;
-                              const values =
-                                parent.scale_max === 5
-                                  ? ["1", "2", "3", "4", "5"]
-                                  : [
-                                      "0",
-                                      "1",
-                                      "2",
-                                      "3",
-                                      "4",
-                                      "5",
-                                      "6",
-                                      "7",
-                                      "8",
-                                      "9",
-                                      "10",
-                                    ];
-                              return (
-                                <div className="mt-4">
-                                  <p className="text-sm font-medium text-slate-700">
-                                    Visa när svaret är:
-                                  </p>
-                                  <div className="mt-3 flex flex-wrap gap-2">
-                                    {values.map((value) => (
-                                      <button
-                                        key={value}
-                                        type="button"
-                                        onClick={() =>
-                                          toggleValue(
-                                            value,
-                                            setEditedShowIfValues,
-                                          )
-                                        }
-                                        className={`h-10 min-w-10 rounded-lg border px-3 text-sm font-semibold transition ${
-                                          editedShowIfValues.includes(value)
-                                            ? "border-indigo-600 bg-indigo-600 text-white"
-                                            : "border-slate-200 bg-white text-slate-700 hover:border-indigo-300"
-                                        }`}
-                                      >
-                                        {value}
-                                      </button>
-                                    ))}
-                                  </div>
-                                </div>
-                              );
-                            })()}
                         </div>
+                      ) : (
+                        <>
+                          <h2 className="mt-2 font-semibold text-slate-900">
+                            {question.text}
+                          </h2>
 
-                        {/* REDIGERA OBLIGATORISK */}
-                        <label className="mt-4 flex items-center gap-3 text-sm font-medium text-slate-700">
-                          <input
-                            type="checkbox"
-                            checked={editedRequired}
-                            onChange={(event) =>
-                              setEditedRequired(event.target.checked)
-                            }
-                            className="h-4 w-4"
-                          />
-                          Obligatorisk fråga
-                        </label>
-
-                        <div className="mt-5 flex gap-2">
-                          <button
-                            type="button"
-                            onClick={() => saveQuestion(question)}
-                            disabled={isSaving}
-                            className="rounded-xl bg-indigo-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-indigo-700 disabled:cursor-not-allowed disabled:opacity-50"
-                          >
-                            {isSaving ? "Sparar..." : "Spara"}
-                          </button>
-
-                          <button
-                            type="button"
-                            onClick={cancelEditing}
-                            disabled={isSaving}
-                            className="rounded-xl border border-slate-200 px-4 py-2 text-sm font-semibold text-slate-600 transition hover:bg-slate-50"
-                          >
-                            Avbryt
-                          </button>
-                        </div>
-                      </div>
-                    ) : (
-                      <>
-                        <h2 className="mt-2 font-semibold text-slate-900">
-                          {question.text}
-                        </h2>
-
-                        <div className="mt-3 flex flex-wrap gap-2 text-xs">
-                          <span className="rounded-full bg-slate-100 px-3 py-1 text-slate-600">
-                            {getQuestionTypeLabel(question)}
-                          </span>
-
-                          <span
-                            className={`rounded-full px-3 py-1 ${
-                              question.required
-                                ? "bg-indigo-50 text-indigo-700"
-                                : "bg-slate-100 text-slate-500"
-                            }`}
-                          >
-                            {question.required ? "Obligatorisk" : "Valfri"}
-                          </span>
-
-                          {question.show_if_question_id && (
-                            <span className="rounded-full bg-violet-50 px-3 py-1 text-violet-700">
-                              Villkorad
+                          <div className="mt-3 flex flex-wrap gap-2 text-xs">
+                            <span className="rounded-full bg-slate-100 px-3 py-1 text-slate-600">
+                              {getQuestionTypeLabel(question)}
                             </span>
-                          )}
 
-                          {!question.active && (
-                            <span className="rounded-full bg-amber-50 px-3 py-1 text-amber-700">
-                              Dold
+                            <span
+                              className={`rounded-full px-3 py-1 ${
+                                question.required
+                                  ? "bg-indigo-50 text-indigo-700"
+                                  : "bg-slate-100 text-slate-500"
+                              }`}
+                            >
+                              {question.required ? "Obligatorisk" : "Valfri"}
                             </span>
-                          )}
-                        </div>
 
-                        {question.type === "multiple-choice" &&
-                          question.options?.length > 0 && (
-                            <div className="mt-3 flex flex-wrap gap-2">
-                              {question.options.map((option, index) => (
-                                <span
-                                  key={`${option}-${index}`}
-                                  className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-1 text-xs text-slate-600"
-                                >
-                                  {option}
-                                </span>
-                              ))}
-                            </div>
-                          )}
+                            {question.show_if_question_id && (
+                              <span className="rounded-full bg-violet-50 px-3 py-1 text-violet-700">
+                                Villkorad
+                              </span>
+                            )}
 
-                        <div className="mt-4 flex flex-wrap gap-2">
-                          <button
-                            type="button"
-                            onClick={() => startEditing(question)}
-                            className="rounded-xl border border-slate-200 px-4 py-2 text-sm font-semibold text-slate-700 transition hover:border-indigo-300 hover:bg-indigo-50 hover:text-indigo-700"
-                          >
-                            Redigera
-                          </button>
+                            {!question.active && (
+                              <span className="rounded-full bg-amber-50 px-3 py-1 text-amber-700">
+                                Dold
+                              </span>
+                            )}
+                          </div>
 
-                          <button
-                            type="button"
-                            onClick={() => toggleActive(question)}
-                            className={`rounded-xl border px-4 py-2 text-sm font-semibold transition ${
-                              question.active
-                                ? "border-amber-200 bg-amber-50 text-amber-700 hover:bg-amber-100"
-                                : "border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100"
-                            }`}
-                          >
-                            {question.active ? "Dölj" : "Visa"}
-                          </button>
+                          {question.type === "multiple-choice" &&
+                            question.options?.length > 0 && (
+                              <div className="mt-3 flex flex-wrap gap-2">
+                                {question.options.map((option, index) => (
+                                  <span
+                                    key={`${option}-${index}`}
+                                    className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-1 text-xs text-slate-600"
+                                  >
+                                    {option}
+                                  </span>
+                                ))}
+                              </div>
+                            )}
 
-                          <button
-                            type="button"
-                            onClick={() => setQuestionToDelete(question)}
-                            className="rounded-xl border border-red-200 bg-red-50 px-4 py-2 text-sm font-semibold text-red-700 transition hover:bg-red-100"
-                          >
-                            Ta bort
-                          </button>
-                        </div>
-                      </>
-                    )}
+                          <div className="mt-4 flex flex-wrap gap-2">
+                            <button
+                              type="button"
+                              onClick={() => startEditing(question)}
+                              className="rounded-xl border border-slate-200 px-4 py-2 text-sm font-semibold text-slate-700 transition hover:border-indigo-300 hover:bg-indigo-50 hover:text-indigo-700"
+                            >
+                              Redigera
+                            </button>
+
+                            <button
+                              type="button"
+                              onClick={() => toggleActive(question)}
+                              className={`rounded-xl border px-4 py-2 text-sm font-semibold transition ${
+                                question.active
+                                  ? "border-amber-200 bg-amber-50 text-amber-700 hover:bg-amber-100"
+                                  : "border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100"
+                              }`}
+                            >
+                              {question.active ? "Dölj" : "Visa"}
+                            </button>
+
+                            <button
+                              type="button"
+                              onClick={() => setQuestionToDelete(question)}
+                              className="rounded-xl border border-red-200 bg-red-50 px-4 py-2 text-sm font-semibold text-red-700 transition hover:bg-red-100"
+                            >
+                              Ta bort
+                            </button>
+                          </div>
+                        </>
+                      )}
+                    </div>
+
+                    <span className="shrink-0 text-sm text-slate-400">
+                      {question.question_number && (
+                        <span>{question.question_number} · </span>
+                      )}
+                      <span>#{question.position}</span>
+                    </span>
                   </div>
-
-                  <span className="shrink-0 text-sm text-slate-400">
-                    {question.question_number && (
-                      <span>{question.question_number} · </span>
-                    )}
-                    <span>#{question.position}</span>
-                  </span>
                 </div>
-              </div>
-            );
-          })}
+              );
+            })}
         </div>
       </div>
 
