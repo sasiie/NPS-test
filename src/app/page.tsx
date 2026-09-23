@@ -70,7 +70,7 @@ const sectionInfo = {
         "These questions are optional and are only used to understand results at group level.",
     },
     enps: {
-      title: "Well-being",
+      title: "Job Satisfaction",
       description: "We will start with a few general questions.",
     },
     "work-environment": {
@@ -86,7 +86,7 @@ const sectionInfo = {
       title: "Communication",
     },
     collaboration: {
-      title: "Collaboration",
+      title: "CollaboratTeamwork & Collaboration",
     },
     development: {
       title: "Development",
