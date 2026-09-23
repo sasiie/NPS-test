@@ -432,11 +432,21 @@ export default function ResultsPage() {
             (response) => response.round_id === round.id,
           );
 
+          // Visa inte trendresultat för grupper med färre än 5 svar.
+          if (roundResponses.length < MIN_GROUP_SIZE) {
+            return null;
+          }
+
           const scores = roundResponses
             .map((response) =>
               Number(response.answers[selectedTrendQuestion.question_id]),
             )
             .filter((score) => Number.isFinite(score));
+
+          // Extra skydd om färre än 5 personer har svarat på just frågan.
+          if (scores.length < MIN_GROUP_SIZE) {
+            return null;
+          }
 
           if (scores.length === 0) {
             return null;
