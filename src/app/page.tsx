@@ -17,6 +17,7 @@ type DatabaseQuestion = {
   options: string[];
   show_if_question_id: string | null;
   show_if_values: string[];
+  is_rotating: boolean;
 };
 
 type SurveySection = {
@@ -82,7 +83,33 @@ export default function Home() {
   const [surveyStarted, setSurveyStarted] = useState(false);
 
   useEffect(() => {
-    async function loadQuestions() {
+    async function loadSurvey() {
+      setIsLoading(true);
+      setLoadError("");
+
+      // Hämta den aktiva pulsen.
+      const { data: activeRound, error: roundError } = await supabase
+        .from("survey-rounds")
+        .select("id, name, rotating_sections")
+        .eq("active", true)
+        .maybeSingle();
+
+      if (roundError) {
+        console.error("Kunde inte hämta aktiv puls:", roundError);
+        setLoadError("Kunde inte hämta den aktiva pulsen.");
+        setIsLoading(false);
+        return;
+      }
+
+      if (!activeRound) {
+        setLoadError("Det finns ingen aktiv puls just nu.");
+        setIsLoading(false);
+        return;
+      }
+
+      const rotatingSections: string[] = activeRound.rotating_sections ?? [];
+
+      // Hämta alla aktiva frågor.
       const { data, error } = await supabase
         .from("survey-questions")
         .select("*")
@@ -96,13 +123,33 @@ export default function Home() {
         return;
       }
 
-      const questions = (data ?? []).map((question) => ({
+      const allQuestions = (data ?? []).map((question) => ({
         ...question,
         options: question.options ?? [],
         show_if_question_id: question.show_if_question_id ?? null,
         show_if_values: question.show_if_values ?? [],
+        is_rotating: question.is_rotating ?? false,
       })) as DatabaseQuestion[];
 
+      // Filtrera frågorna utifrån den aktiva pulsen.
+      const questions = allQuestions.filter((question) => {
+        // Kärnfrågor visas alltid.
+        if (!question.is_rotating) {
+          return true;
+        }
+
+        // Roterande avslutande frågor, till exempel Ö3 och Ö4,
+        // visas när pulsen innehåller minst ett roterande område.
+        if (question.section === "comments") {
+          return rotatingSections.length > 0;
+        }
+
+        // Övriga roterande frågor visas bara när deras
+        // frågeområde är valt för den aktiva pulsen.
+        return rotatingSections.includes(question.section);
+      });
+
+      // Bygg sektionerna.
       const sections: SurveySection[] = [];
 
       for (const question of questions) {
@@ -126,15 +173,22 @@ export default function Home() {
         section.questions.push(question);
       }
 
- const sortedSections = [...sections].sort(
-  (a, b) => sectionOrder.indexOf(a.id) - sectionOrder.indexOf(b.id),
-);
+      // Sortera sektionerna i önskad ordning.
+      const sortedSections = [...sections].sort((a, b) => {
+        const aIndex = sectionOrder.indexOf(a.id);
+        const bIndex = sectionOrder.indexOf(b.id);
 
-setSurveySections(sortedSections);
+        const safeAIndex = aIndex === -1 ? Number.MAX_SAFE_INTEGER : aIndex;
+        const safeBIndex = bIndex === -1 ? Number.MAX_SAFE_INTEGER : bIndex;
+
+        return safeAIndex - safeBIndex;
+      });
+
+      setSurveySections(sortedSections);
       setIsLoading(false);
     }
 
-    loadQuestions();
+    loadSurvey();
   }, []);
 
   function isQuestionVisible(
@@ -142,7 +196,9 @@ setSurveySections(sortedSections);
     currentAnswers: SurveyAnswers = answers,
   ) {
     if (!question.show_if_question_id) return true;
+
     const parentAnswer = currentAnswers[question.show_if_question_id];
+
     return (
       parentAnswer !== undefined &&
       question.show_if_values.includes(parentAnswer)
@@ -151,11 +207,16 @@ setSurveySections(sortedSections);
 
   function updateAnswer(questionId: string, value: string) {
     setAnswers((previous) => {
-      const nextAnswers: SurveyAnswers = { ...previous, [questionId]: value };
+      const nextAnswers: SurveyAnswers = {
+        ...previous,
+        [questionId]: value,
+      };
+
       let changed = true;
 
       while (changed) {
         changed = false;
+
         for (const section of surveySections) {
           for (const question of section.questions) {
             if (
@@ -190,7 +251,9 @@ setSurveySections(sortedSections);
             Enkäten kunde inte laddas
           </h1>
 
-          <p className="mt-3 text-slate-600">Försök igen om en liten stund.</p>
+          <p className="mt-3 text-slate-600">
+            {loadError || "Försök igen om en liten stund."}
+          </p>
         </div>
       </main>
     );
