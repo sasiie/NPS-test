@@ -63,6 +63,7 @@ const sectionInfo = {
       description: "Här kan du lämna egna synpunkter.",
     },
   },
+
   en: {
     background: {
       title: "Background questions",
@@ -126,7 +127,6 @@ export default function Home() {
       setIsLoading(true);
       setLoadError("");
 
-      // 1. Hämta den aktiva pulsen.
       const { data: activeRound, error: roundError } = await supabase
         .from("survey-rounds")
         .select("id, name, rotating_sections, open_question_ids")
@@ -147,9 +147,9 @@ export default function Home() {
       }
 
       const rotatingSections: string[] = activeRound.rotating_sections ?? [];
+
       const openQuestionIds: string[] = activeRound.open_question_ids ?? [];
 
-      // 2. Hämta alla aktiva frågor.
       const { data, error } = await supabase
         .from("survey-questions")
         .select("*")
@@ -173,7 +173,6 @@ export default function Home() {
         is_rotating: question.is_rotating ?? false,
       })) as DatabaseQuestion[];
 
-      // 3. Filtrera frågorna efter den aktiva pulsen.
       const questions = allQuestions.filter((question) => {
         if (question.section === "comments") {
           return openQuestionIds.includes(question.question_id);
@@ -186,7 +185,6 @@ export default function Home() {
         return rotatingSections.includes(question.section);
       });
 
-      // 4. Bygg sektionerna.
       const sections: SurveySection[] = [];
 
       for (const question of questions) {
@@ -206,7 +204,6 @@ export default function Home() {
         section.questions.push(question);
       }
 
-      // 5. Sortera sektionerna.
       const sortedSections = [...sections].sort((a, b) => {
         const aIndex = sectionOrder.indexOf(a.id);
         const bIndex = sectionOrder.indexOf(b.id);
@@ -231,6 +228,27 @@ export default function Home() {
     }
 
     return question.text;
+  }
+
+  function formatAnswerRange(values: string[]) {
+    const numbers = values
+      .map(Number)
+      .filter((value) => !Number.isNaN(value))
+      .sort((a, b) => a - b);
+
+    if (numbers.length === 0) {
+      return values.join(", ");
+    }
+
+    const isContinuous = numbers.every(
+      (value, index) => index === 0 || value === numbers[index - 1] + 1,
+    );
+
+    if (isContinuous && numbers.length > 1) {
+      return `${numbers[0]}–${numbers[numbers.length - 1]}`;
+    }
+
+    return numbers.join(", ");
   }
 
   function getQuestionOptions(question: DatabaseQuestion) {
@@ -314,8 +332,8 @@ export default function Home() {
     question: DatabaseQuestion,
     optionIndex: number,
   ) {
-    // Vi sparar alltid det svenska/originala alternativet.
-    // På så sätt blir resultatet identiskt oavsett språk.
+    // Vi sparar alltid originalvärdet på svenska.
+    // Då hamnar svenska och engelska svar i samma resultatkategori.
     const originalOption =
       question.options[optionIndex] ?? question.options_en[optionIndex] ?? "";
 
@@ -472,6 +490,7 @@ export default function Home() {
               className="mt-8 w-full rounded-xl bg-indigo-600 px-6 py-4 text-base font-semibold text-white shadow-sm transition hover:bg-indigo-700 focus:outline-none focus:ring-4 focus:ring-indigo-200"
             >
               {language === "sv" ? "Starta enkäten" : "Start survey"}
+
               <span className="ml-2">→</span>
             </button>
 
@@ -513,8 +532,8 @@ export default function Home() {
       orderedQuestions.push(...followUpQuestions);
     }
 
-    // Säkerhet: om en följdfråga av någon anledning inte hittar
-    // sin huvudfråga i samma sektion ska den ändå visas.
+    // Om en följdfråga av någon anledning inte hittar
+    // sin huvudfråga i samma sektion visas den ändå.
     const addedIds = new Set(
       orderedQuestions.map((question) => question.question_id),
     );
@@ -698,7 +717,9 @@ export default function Home() {
         <div className="space-y-5">
           {visibleQuestions.map((question) => {
             const answer = answers[question.question_id];
+
             const displayedOptions = getQuestionOptions(question);
+
             const isFollowUp = Boolean(question.show_if_question_id);
 
             const hasError =
@@ -725,11 +746,16 @@ export default function Home() {
 
                     <p className="mt-2 text-sm text-slate-600">
                       {language === "sv"
-                        ? "Utifrån ditt svar på frågan ovan vill vi gärna veta lite mer."
-                        : "Based on your answer to the question above, we'd like to know a little more."}
+                        ? `Om du har svarat ${formatAnswerRange(
+                            question.show_if_values,
+                          )} på frågan ovan, svara även på följande fråga.`
+                        : `If you answered ${formatAnswerRange(
+                            question.show_if_values,
+                          )} to the question above, please also answer the following question.`}
                     </p>
                   </div>
                 )}
+
                 <h2 className="text-base font-semibold leading-6 text-slate-900">
                   {getQuestionText(question)}
 
@@ -916,6 +942,7 @@ export default function Home() {
               className="rounded-xl bg-indigo-600 px-6 py-3 font-semibold text-white shadow-sm transition hover:bg-indigo-700 focus:outline-none focus:ring-4 focus:ring-indigo-200"
             >
               {language === "sv" ? "Nästa" : "Next"}
+
               <span className="ml-2">→</span>
             </button>
           ) : (
