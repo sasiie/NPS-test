@@ -10,10 +10,13 @@ export default function AdminPage() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
+  const [message, setMessage] = useState("");
   const [isLoading, setIsLoading] = useState(false);
+  const [isResettingPassword, setIsResettingPassword] = useState(false);
 
   async function handleLogin() {
     setError("");
+    setMessage("");
     setIsLoading(true);
 
     const { error } = await supabase.auth.signInWithPassword({
@@ -30,6 +33,34 @@ export default function AdminPage() {
     router.push("/results");
   }
 
+  async function handleForgotPassword() {
+    setError("");
+    setMessage("");
+
+    if (!email.trim()) {
+      setError("Skriv din mejladress först.");
+      return;
+    }
+
+    setIsResettingPassword(true);
+
+    const { error } = await supabase.auth.resetPasswordForEmail(email.trim(), {
+      redirectTo: `${window.location.origin}/set-password`,
+    });
+
+    if (error) {
+      console.error("Password reset error:", error);
+      setError("Kunde inte skicka återställningsmejlet. Försök igen.");
+      setIsResettingPassword(false);
+      return;
+    }
+
+    setMessage(
+      "Ett mejl har skickats. Öppna länken i mejlet för att välja ett nytt lösenord.",
+    );
+    setIsResettingPassword(false);
+  }
+
   return (
     <main className="flex min-h-screen items-center justify-center bg-slate-50 px-4">
       <div className="w-full max-w-md rounded-2xl border border-slate-200 bg-white p-8 shadow-sm">
@@ -38,7 +69,7 @@ export default function AdminPage() {
         <h1 className="mt-2 text-3xl font-bold text-slate-900">Admin</h1>
 
         <p className="mt-3 text-sm text-slate-600">
-          Logga in för att se resultaten.
+          Logga in för att administrera medarbetarpulsen.
         </p>
 
         <div className="mt-6">
@@ -79,8 +110,25 @@ export default function AdminPage() {
           />
         </div>
 
+        <div className="mt-3 text-right">
+          <button
+            type="button"
+            onClick={handleForgotPassword}
+            disabled={isResettingPassword}
+            className="text-sm font-semibold text-indigo-600 transition hover:text-indigo-700 disabled:opacity-60"
+          >
+            {isResettingPassword ? "Skickar..." : "Glömt lösenord?"}
+          </button>
+        </div>
+
         {error && (
           <p className="mt-3 text-sm font-medium text-red-600">{error}</p>
+        )}
+
+        {message && (
+          <p className="mt-3 rounded-xl bg-green-50 p-3 text-sm font-medium text-green-700">
+            {message}
+          </p>
         )}
 
         <button
