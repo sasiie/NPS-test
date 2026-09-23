@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { QRCodeSVG } from "qrcode.react";
+import { QRCodeCanvas } from "qrcode.react";
 import { supabase } from "@/lib/supabase";
 import AdminNav from "@/components/AdminNav";
 
@@ -235,6 +235,23 @@ export default function RoundsPage() {
     } catch {
       alert("Kunde inte kopiera länken.");
     }
+  }
+
+  function downloadQrCode() {
+    const canvas = document.getElementById(
+      "survey-qr-code",
+    ) as HTMLCanvasElement | null;
+
+    if (!canvas) {
+      alert("Visa QR-koden först innan du laddar ner den.");
+      return;
+    }
+
+    const pngUrl = canvas.toDataURL("image/png");
+    const downloadLink = document.createElement("a");
+    downloadLink.href = pngUrl;
+    downloadLink.download = "balzac-medarbetarpuls-qr.png";
+    downloadLink.click();
   }
 
   async function closeRound(round: SurveyRound) {
@@ -558,18 +575,26 @@ export default function RoundsPage() {
 
                       {showQrCode && (
                         <div className="rounded-xl border border-slate-200 bg-white p-4 text-center">
-                          <QRCodeSVG
+                          <QRCodeCanvas
+                            id="survey-qr-code"
                             value={
                               typeof window !== "undefined"
                                 ? window.location.origin
                                 : ""
                             }
-                            size={180}
+                            size={220}
+                            level="H"
+                            marginSize={2}
                             className="mx-auto"
                           />
-                          <p className="mt-3 text-xs text-slate-500">
-                            Skanna för att öppna enkäten
-                          </p>
+
+                          <button
+                            type="button"
+                            onClick={downloadQrCode}
+                            className="mt-3 w-full rounded-xl bg-slate-900 px-4 py-2 text-sm font-semibold text-white transition hover:bg-slate-800"
+                          >
+                            Ladda ner QR-kod
+                          </button>
                         </div>
                       )}
 
