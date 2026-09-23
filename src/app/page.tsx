@@ -567,6 +567,11 @@ export default function Home() {
 
     if (!isLastStep) {
       setCurrentStep((step) => step + 1);
+
+      window.scrollTo({
+        top: 0,
+        behavior: "smooth",
+      });
     }
   }
 
@@ -575,6 +580,11 @@ export default function Home() {
 
     if (!isFirstStep) {
       setCurrentStep((step) => step - 1);
+
+      window.scrollTo({
+        top: 0,
+        behavior: "smooth",
+      });
     }
   }
 
@@ -783,8 +793,8 @@ export default function Home() {
                     <div
                       className={
                         question.scale_max === 5
-                          ? "flex flex-wrap gap-2"
-                          : "grid grid-cols-5 gap-2 sm:grid-cols-10"
+                          ? "flex flex-wrap justify-center gap-3"
+                          : "flex flex-wrap justify-center gap-2 sm:gap-3"
                       }
                     >
                       {(question.scale_max === 5
@@ -802,7 +812,7 @@ export default function Home() {
                             onClick={() =>
                               updateAnswer(question.question_id, String(number))
                             }
-                            className={`flex h-11 w-11 items-center justify-center rounded-lg border text-sm font-semibold transition sm:h-12 sm:w-12 ${
+                            className={`flex h-12 w-12 items-center justify-center rounded-lg border text-sm font-semibold transition sm:h-12 sm:w-12 ${
                               selected
                                 ? "border-indigo-600 bg-indigo-600 text-white shadow-sm"
                                 : hasError
