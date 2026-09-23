@@ -1,8 +1,8 @@
-import type { SurveySection} from "@/types/types";
+import type { SurveySection } from "@/types/types";
 export const surveySections: SurveySection[] = [
   {
     id: "enps",
-    title: "Din arbetsplats",
+    title: "Trivsel",
     description: "Vi börjar med några övergripande frågor.",
     questions: [
       {

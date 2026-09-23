@@ -24,7 +24,7 @@ type Question = {
 
 const sectionOptions = [
   { value: "background", label: "Bakgrundsfrågor" },
-  { value: "enps", label: "Din arbetsplats" },
+  { value: "enps", label: "Trivsel" },
   { value: "work-environment", label: "Arbetsmiljö" },
   { value: "leadership", label: "Ledarskap" },
   { value: "communication", label: "Kommunikation" },
