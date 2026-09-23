@@ -392,6 +392,21 @@ export default function ResultsPage() {
     return total / scores.length;
   }
 
+  function getScoreDistribution(questionId: string, scaleMax: number) {
+    const scores = getScores(questionId);
+
+    return Array.from({ length: scaleMax }, (_, index) => {
+      const score = index + 1;
+      const count = scores.filter((value) => value === score).length;
+
+      return {
+        score,
+        count,
+        percentage: scores.length > 0 ? (count / scores.length) * 100 : 0,
+      };
+    });
+  }
+
   function getTextAnswers(questionId: string) {
     return resultResponses
       .map((response) => response.answers[questionId])
@@ -1052,6 +1067,11 @@ export default function ResultsPage() {
 
                     const answerCount = getScores(question.question_id).length;
 
+                    const distribution = getScoreDistribution(
+                      question.question_id,
+                      question.scale_max,
+                    );
+
                     return (
                       <div
                         key={question.id}
@@ -1090,6 +1110,38 @@ export default function ResultsPage() {
                                   )}%`,
                                 }}
                               />
+                            </div>
+
+                            <div className="mt-6 border-t border-slate-100 pt-5">
+                              <p className="mb-3 text-xs font-semibold uppercase tracking-wide text-slate-500">
+                                Svarsfördelning
+                              </p>
+
+                              <div className="space-y-2">
+                                {distribution.map((item) => (
+                                  <div
+                                    key={item.score}
+                                    className="grid grid-cols-[20px_1fr_55px] items-center gap-3"
+                                  >
+                                    <span className="text-sm font-semibold text-slate-700">
+                                      {item.score}
+                                    </span>
+
+                                    <div className="h-2.5 overflow-hidden rounded-full bg-slate-100">
+                                      <div
+                                        className="h-full rounded-full bg-indigo-500"
+                                        style={{
+                                          width: `${item.percentage}%`,
+                                        }}
+                                      />
+                                    </div>
+
+                                    <span className="text-right text-xs text-slate-500">
+                                      {item.count} svar
+                                    </span>
+                                  </div>
+                                ))}
+                              </div>
                             </div>
                           </>
                         ) : (
