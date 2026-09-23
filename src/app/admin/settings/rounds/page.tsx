@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
+import { QRCodeSVG } from "qrcode.react";
 import { supabase } from "@/lib/supabase";
 import AdminNav from "@/components/AdminNav";
 
@@ -42,6 +43,7 @@ export default function RoundsPage() {
   const [isCreating, setIsCreating] = useState(false);
   const [isUpdating, setIsUpdating] = useState(false);
   const [error, setError] = useState("");
+  const [showQrCode, setShowQrCode] = useState(false);
 
   useEffect(() => {
     async function loadPage() {
@@ -545,6 +547,31 @@ export default function RoundsPage() {
                       >
                         Kopiera enkätlänk
                       </button>
+
+                      <button
+                        type="button"
+                        onClick={() => setShowQrCode((previous) => !previous)}
+                        className="rounded-xl border border-indigo-200 bg-indigo-50 px-4 py-2 text-sm font-semibold text-indigo-700 transition hover:bg-indigo-100"
+                      >
+                        {showQrCode ? "Dölj QR-kod" : "Visa QR-kod"}
+                      </button>
+
+                      {showQrCode && (
+                        <div className="rounded-xl border border-slate-200 bg-white p-4 text-center">
+                          <QRCodeSVG
+                            value={
+                              typeof window !== "undefined"
+                                ? window.location.origin
+                                : ""
+                            }
+                            size={180}
+                            className="mx-auto"
+                          />
+                          <p className="mt-3 text-xs text-slate-500">
+                            Skanna för att öppna enkäten
+                          </p>
+                        </div>
+                      )}
 
                       <button
                         type="button"
