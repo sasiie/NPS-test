@@ -378,7 +378,12 @@ export default function Home() {
       <main className="flex min-h-screen items-center justify-center bg-slate-50 px-4 py-10 sm:px-6">
         <div className="w-full max-w-2xl">
           <div className="rounded-3xl border border-slate-200 bg-white p-8 shadow-sm sm:p-12">
-            <div className="mb-6 flex justify-end">
+            <div className="mb-6 flex items-center justify-between">
+              <img
+                src="/balzac-katt.svg"
+                alt="Balzac"
+                className="-mt-6 mb-5 h-20 w-auto"
+              />
               <div className="inline-flex rounded-xl border border-slate-200 bg-slate-50 p-1">
                 <button
                   type="button"
@@ -407,11 +412,6 @@ export default function Home() {
             </div>
 
             <div className="mb-8">
-              <img
-                src="/balzac-katt.svg"
-                alt="Balzac"
-                className="-mt-6 mb-5 h-20 w-auto"
-              />
               <p className="text-sm font-semibold text-indigo-600">
                 {language === "sv" ? "Medarbetarpuls" : "Employee survey"}
               </p>
