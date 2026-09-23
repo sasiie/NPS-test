@@ -1,10 +1,18 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import type { SurveyResponse } from "@/types/survey";
 import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 import AdminNav from "@/components/AdminNav";
+
+type Answers = Record<string, string>;
+
+type ResponseRow = {
+  id: string;
+  created_at: string;
+  round_id: string;
+  answers: Answers;
+};
 
 type Question = {
   id: string;
@@ -48,7 +56,9 @@ const MIN_GROUP_SIZE = 5;
 export default function ResultsPage() {
   const router = useRouter();
 
-  const [responses, setResponses] = useState<SurveyResponse[]>([]);
+  const [responses, setResponses] = useState<ResponseRow[]>([]);
+  const [allResponses, setAllResponses] = useState<ResponseRow[]>([]);
+
   const [questions, setQuestions] = useState<Question[]>([]);
   const [rounds, setRounds] = useState<SurveyRound[]>([]);
   const [selectedRoundId, setSelectedRoundId] = useState("");
@@ -57,9 +67,15 @@ export default function ResultsPage() {
   const [tenureFilter, setTenureFilter] = useState("");
   const [employmentFilter, setEmploymentFilter] = useState("");
 
+  const [trendQuestionId, setTrendQuestionId] = useState("");
+
   const [isLoading, setIsLoading] = useState(true);
   const [isLoadingResponses, setIsLoadingResponses] = useState(false);
   const [error, setError] = useState("");
+
+  // --------------------------------------------------
+  // HÄMTA FRÅGOR + PULSER
+  // --------------------------------------------------
 
   useEffect(() => {
     async function loadAdminData() {
@@ -121,6 +137,17 @@ export default function ResultsPage() {
         if (initialRound) {
           setSelectedRoundId(initialRound.id);
         }
+
+        const firstTrendQuestion = loadedQuestions.find(
+          (question) =>
+            question.type === "scale" &&
+            !question.is_rotating &&
+            question.section !== "background",
+        );
+
+        if (firstTrendQuestion) {
+          setTrendQuestionId(firstTrendQuestion.question_id);
+        }
       } catch (error) {
         console.error(error);
         setError("Kunde inte hämta admininformationen.");
@@ -131,6 +158,10 @@ export default function ResultsPage() {
 
     loadAdminData();
   }, [router]);
+
+  // --------------------------------------------------
+  // HÄMTA SVAR FÖR VALD PULS
+  // --------------------------------------------------
 
   useEffect(() => {
     if (!selectedRoundId) {
@@ -165,11 +196,10 @@ export default function ResultsPage() {
           throw new Error("Kunde inte hämta resultaten.");
         }
 
-        const data: SurveyResponse[] = await response.json();
+        const data: ResponseRow[] = await response.json();
 
         setResponses(data);
 
-        // Nollställ segmenteringsfilter när admin byter puls.
         setDepartmentFilter("");
         setTenureFilter("");
         setEmploymentFilter("");
@@ -184,18 +214,52 @@ export default function ResultsPage() {
     loadResponses();
   }, [selectedRoundId, router]);
 
-  const selectedRound = rounds.find(
-    (round) => round.id === selectedRoundId,
-  );
+  // --------------------------------------------------
+  // HÄMTA ALLA HISTORISKA SVAR FÖR TREND
+  // --------------------------------------------------
 
-  // ----- Frågor som faktiskt ingår i vald puls -----
+  useEffect(() => {
+    async function loadAllResponses() {
+      try {
+        const {
+          data: { session },
+        } = await supabase.auth.getSession();
+
+        if (!session) {
+          return;
+        }
+
+        const response = await fetch("/api/responses", {
+          headers: {
+            Authorization: `Bearer ${session.access_token}`,
+          },
+        });
+
+        if (!response.ok) {
+          throw new Error("Kunde inte hämta trenddata.");
+        }
+
+        const data: ResponseRow[] = await response.json();
+
+        setAllResponses(data);
+      } catch (error) {
+        console.error("Trenddata error:", error);
+      }
+    }
+
+    loadAllResponses();
+  }, []);
+
+  const selectedRound = rounds.find((round) => round.id === selectedRoundId);
+
+  // --------------------------------------------------
+  // FRÅGOR SOM INGICK I VALD PULS
+  // --------------------------------------------------
 
   const roundQuestions = selectedRound
     ? questions.filter((question) => {
         if (question.section === "comments") {
-          return selectedRound.open_question_ids.includes(
-            question.question_id,
-          );
+          return selectedRound.open_question_ids.includes(question.question_id);
         }
 
         if (!question.is_rotating) {
@@ -206,7 +270,9 @@ export default function ResultsPage() {
       })
     : [];
 
-  // ----- Segmentering -----
+  // --------------------------------------------------
+  // SEGMENTERING
+  // --------------------------------------------------
 
   function getUniqueAnswers(questionId: string) {
     return Array.from(
@@ -236,9 +302,7 @@ export default function ResultsPage() {
   );
 
   const hasActiveFilter =
-    departmentFilter !== "" ||
-    tenureFilter !== "" ||
-    employmentFilter !== "";
+    departmentFilter !== "" || tenureFilter !== "" || employmentFilter !== "";
 
   const filteredResponses = responses.filter((response) => {
     if (
@@ -251,8 +315,7 @@ export default function ResultsPage() {
 
     if (
       tenureFilter &&
-      response.answers[BACKGROUND_QUESTIONS.tenure.questionId] !==
-        tenureFilter
+      response.answers[BACKGROUND_QUESTIONS.tenure.questionId] !== tenureFilter
     ) {
       return false;
     }
@@ -271,11 +334,11 @@ export default function ResultsPage() {
   const groupIsTooSmall =
     hasActiveFilter && filteredResponses.length < MIN_GROUP_SIZE;
 
-  const resultResponses = hasActiveFilter
-    ? filteredResponses
-    : responses;
+  const resultResponses = hasActiveFilter ? filteredResponses : responses;
 
-  // ----- eNPS -----
+  // --------------------------------------------------
+  // eNPS
+  // --------------------------------------------------
 
   const enpsQuestion = roundQuestions.find(
     (question) =>
@@ -307,7 +370,9 @@ export default function ResultsPage() {
         )
       : 0;
 
-  // ----- Hjälpfunktioner -----
+  // --------------------------------------------------
+  // HJÄLPFUNKTIONER
+  // --------------------------------------------------
 
   function getScores(questionId: string) {
     return resultResponses
@@ -338,28 +403,131 @@ export default function ResultsPage() {
 
   const scaleQuestions = roundQuestions.filter(
     (question) =>
-      question.type === "scale" &&
-      question.question_id !== enpsQuestionId,
+      question.type === "scale" && question.question_id !== enpsQuestionId,
   );
 
   const textQuestions = roundQuestions.filter(
     (question) => question.type === "text",
   );
 
-  // ----- CSV -----
+  // --------------------------------------------------
+  // TREND ÖVER TID
+  // --------------------------------------------------
+
+  const trendQuestions = questions.filter(
+    (question) =>
+      question.type === "scale" &&
+      !question.is_rotating &&
+      question.section !== "background",
+  );
+
+  const selectedTrendQuestion = trendQuestions.find(
+    (question) => question.question_id === trendQuestionId,
+  );
+
+  const trendData = selectedTrendQuestion
+    ? rounds
+        .map((round) => {
+          const roundResponses = allResponses.filter(
+            (response) => response.round_id === round.id,
+          );
+
+          const scores = roundResponses
+            .map((response) =>
+              Number(response.answers[selectedTrendQuestion.question_id]),
+            )
+            .filter((score) => Number.isFinite(score));
+
+          if (scores.length === 0) {
+            return null;
+          }
+
+          // eNPS ska räknas som eNPS, inte som vanligt medelvärde.
+          if (selectedTrendQuestion.scale_max === 10) {
+            const roundPromoters = scores.filter((score) => score >= 9).length;
+
+            const roundDetractors = scores.filter((score) => score <= 6).length;
+
+            const score = Math.round(
+              (roundPromoters / scores.length) * 100 -
+                (roundDetractors / scores.length) * 100,
+            );
+
+            return {
+              roundId: round.id,
+              name: round.name,
+              createdAt: round.created_at,
+              value: score,
+              answerCount: scores.length,
+            };
+          }
+
+          const average =
+            scores.reduce((sum, score) => sum + score, 0) / scores.length;
+
+          return {
+            roundId: round.id,
+            name: round.name,
+            createdAt: round.created_at,
+            value: average,
+            answerCount: scores.length,
+          };
+        })
+        .filter(
+          (
+            item,
+          ): item is {
+            roundId: string;
+            name: string;
+            createdAt: string;
+            value: number;
+            answerCount: number;
+          } => item !== null,
+        )
+        .sort(
+          (a, b) =>
+            new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime(),
+        )
+    : [];
+
+  function getTrendBarHeight(value: number) {
+    if (!selectedTrendQuestion) {
+      return 0;
+    }
+
+    if (selectedTrendQuestion.scale_max === 10) {
+      // eNPS går från -100 till +100.
+      return Math.max(5, ((value + 100) / 200) * 100);
+    }
+
+    return Math.max(
+      5,
+      Math.min((value / selectedTrendQuestion.scale_max) * 100, 100),
+    );
+  }
+
+  function formatTrendValue(value: number) {
+    if (!selectedTrendQuestion) {
+      return "";
+    }
+
+    if (selectedTrendQuestion.scale_max === 10) {
+      return `${value > 0 ? "+" : ""}${Math.round(value)}`;
+    }
+
+    return `${value.toFixed(1)} / ${selectedTrendQuestion.scale_max}`;
+  }
+
+  // --------------------------------------------------
+  // CSV
+  // --------------------------------------------------
 
   function exportToCsv() {
-    if (
-      !selectedRound ||
-      resultResponses.length === 0 ||
-      groupIsTooSmall
-    ) {
+    if (!selectedRound || resultResponses.length === 0 || groupIsTooSmall) {
       return;
     }
 
-    function escapeCsvValue(
-      value: string | number | undefined | null,
-    ) {
+    function escapeCsvValue(value: string | number | undefined | null) {
       const text = String(value ?? "").replace(/"/g, '""');
       return `"${text}"`;
     }
@@ -378,9 +546,7 @@ export default function ResultsPage() {
 
     const csvContent = [
       headers.map(escapeCsvValue).join(";"),
-      ...rows.map((row) =>
-        row.map((value) => escapeCsvValue(value)).join(";"),
-      ),
+      ...rows.map((row) => row.map((value) => escapeCsvValue(value)).join(";")),
     ].join("\n");
 
     const blob = new Blob(["\uFEFF" + csvContent], {
@@ -411,6 +577,10 @@ export default function ResultsPage() {
     setEmploymentFilter("");
   }
 
+  // --------------------------------------------------
+  // LOADING
+  // --------------------------------------------------
+
   if (isLoading) {
     return (
       <main className="min-h-screen bg-slate-50 px-4 py-10">
@@ -425,6 +595,8 @@ export default function ResultsPage() {
     <main className="min-h-screen bg-slate-50 px-4 py-10 sm:px-6">
       <div className="mx-auto max-w-5xl">
         <AdminNav />
+
+        {/* RUBRIK */}
 
         <div className="mb-8">
           <p className="text-sm font-semibold text-indigo-600">Admin</p>
@@ -444,7 +616,7 @@ export default function ResultsPage() {
           </div>
         )}
 
-        {/* Välj puls */}
+        {/* VÄLJ PULS */}
 
         <section className="mb-6 rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
           <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
@@ -459,9 +631,7 @@ export default function ResultsPage() {
               <select
                 id="round"
                 value={selectedRoundId}
-                onChange={(event) =>
-                  setSelectedRoundId(event.target.value)
-                }
+                onChange={(event) => setSelectedRoundId(event.target.value)}
                 className="mt-2 w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-slate-900 outline-none transition focus:border-indigo-500 focus:ring-4 focus:ring-indigo-100"
               >
                 {rounds.length === 0 && (
@@ -506,7 +676,7 @@ export default function ResultsPage() {
           </div>
         </section>
 
-        {/* Segmentering */}
+        {/* SEGMENTERING */}
 
         {selectedRoundId && !isLoadingResponses && (
           <section className="mb-8 rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
@@ -545,11 +715,9 @@ export default function ResultsPage() {
                 <select
                   id="department-filter"
                   value={departmentFilter}
-                  onChange={(event) =>
-                    setDepartmentFilter(event.target.value)
-                  }
+                  onChange={(event) => setDepartmentFilter(event.target.value)}
                   disabled={departmentOptions.length === 0}
-                  className="mt-2 w-full rounded-xl border border-slate-200 bg-white px-3 py-3 text-sm text-slate-900 outline-none transition focus:border-indigo-500 focus:ring-4 focus:ring-indigo-100 disabled:bg-slate-50 disabled:text-slate-400"
+                  className="mt-2 w-full rounded-xl border border-slate-200 bg-white px-3 py-3 text-sm text-slate-900 disabled:bg-slate-50 disabled:text-slate-400"
                 >
                   <option value="">Alla</option>
 
@@ -572,11 +740,9 @@ export default function ResultsPage() {
                 <select
                   id="tenure-filter"
                   value={tenureFilter}
-                  onChange={(event) =>
-                    setTenureFilter(event.target.value)
-                  }
+                  onChange={(event) => setTenureFilter(event.target.value)}
                   disabled={tenureOptions.length === 0}
-                  className="mt-2 w-full rounded-xl border border-slate-200 bg-white px-3 py-3 text-sm text-slate-900 outline-none transition focus:border-indigo-500 focus:ring-4 focus:ring-indigo-100 disabled:bg-slate-50 disabled:text-slate-400"
+                  className="mt-2 w-full rounded-xl border border-slate-200 bg-white px-3 py-3 text-sm text-slate-900 disabled:bg-slate-50 disabled:text-slate-400"
                 >
                   <option value="">Alla</option>
 
@@ -599,11 +765,9 @@ export default function ResultsPage() {
                 <select
                   id="employment-filter"
                   value={employmentFilter}
-                  onChange={(event) =>
-                    setEmploymentFilter(event.target.value)
-                  }
+                  onChange={(event) => setEmploymentFilter(event.target.value)}
                   disabled={employmentOptions.length === 0}
-                  className="mt-2 w-full rounded-xl border border-slate-200 bg-white px-3 py-3 text-sm text-slate-900 outline-none transition focus:border-indigo-500 focus:ring-4 focus:ring-indigo-100 disabled:bg-slate-50 disabled:text-slate-400"
+                  className="mt-2 w-full rounded-xl border border-slate-200 bg-white px-3 py-3 text-sm text-slate-900 disabled:bg-slate-50 disabled:text-slate-400"
                 >
                   <option value="">Alla</option>
 
@@ -618,8 +782,8 @@ export default function ResultsPage() {
 
             <div className="mt-5 rounded-xl bg-slate-50 p-4">
               <p className="text-sm text-slate-600">
-                🔒 Segmenterade resultat visas endast när gruppen
-                innehåller minst {MIN_GROUP_SIZE} svar.
+                🔒 Segmenterade resultat visas endast när gruppen innehåller
+                minst {MIN_GROUP_SIZE} svar.
               </p>
             </div>
           </section>
@@ -627,14 +791,10 @@ export default function ResultsPage() {
 
         {isLoadingResponses ? (
           <div className="rounded-2xl border border-slate-200 bg-white p-8 text-center shadow-sm">
-            <p className="text-slate-600">
-              Laddar pulsens resultat...
-            </p>
+            <p className="text-slate-600">Laddar pulsens resultat...</p>
           </div>
         ) : selectedRoundId ? (
           groupIsTooSmall ? (
-            /* Integritetsspärr */
-
             <section className="rounded-2xl border border-amber-200 bg-amber-50 p-8 text-center">
               <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-white text-xl shadow-sm">
                 🔒
@@ -645,22 +805,22 @@ export default function ResultsPage() {
               </h2>
 
               <p className="mx-auto mt-2 max-w-lg text-sm leading-6 text-slate-600">
-                Den valda gruppen innehåller färre än{" "}
-                {MIN_GROUP_SIZE} svar. Resultatet visas därför inte för
-                att skydda medarbetarnas anonymitet.
+                Den valda gruppen innehåller färre än {MIN_GROUP_SIZE} svar.
+                Resultatet visas därför inte för att skydda medarbetarnas
+                anonymitet.
               </p>
 
               <button
                 type="button"
                 onClick={resetFilters}
-                className="mt-5 rounded-xl bg-white px-5 py-2.5 text-sm font-semibold text-slate-700 shadow-sm ring-1 ring-slate-200 transition hover:bg-slate-50"
+                className="mt-5 rounded-xl bg-white px-5 py-2.5 text-sm font-semibold text-slate-700 shadow-sm ring-1 ring-slate-200"
               >
                 Visa alla svar
               </button>
             </section>
           ) : (
             <>
-              {/* Dashboard */}
+              {/* DASHBOARD */}
 
               <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
                 <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
@@ -680,9 +840,7 @@ export default function ResultsPage() {
                 </section>
 
                 <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-                  <p className="text-sm font-medium text-slate-500">
-                    eNPS
-                  </p>
+                  <p className="text-sm font-medium text-slate-500">eNPS</p>
 
                   <p className="mt-2 text-4xl font-bold text-slate-900">
                     {totalEnpsResponses > 0
@@ -696,9 +854,7 @@ export default function ResultsPage() {
                 </section>
 
                 <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-                  <p className="text-sm font-medium text-slate-500">
-                    Puls
-                  </p>
+                  <p className="text-sm font-medium text-slate-500">Puls</p>
 
                   <p className="mt-2 text-lg font-bold leading-7 text-slate-900">
                     {selectedRound?.name ?? "–"}
@@ -718,7 +874,7 @@ export default function ResultsPage() {
                 </section>
               </div>
 
-              {/* eNPS */}
+              {/* eNPS-FÖRDELNING */}
 
               <section className="mt-6 rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
                 <div className="mb-5">
@@ -736,47 +892,138 @@ export default function ResultsPage() {
                     <p className="text-sm font-semibold text-emerald-700">
                       Promoters
                     </p>
-
                     <p className="mt-2 text-3xl font-bold text-emerald-900">
                       {promoters}
                     </p>
-
-                    <p className="mt-1 text-xs text-emerald-700">
-                      Betyg 9–10
-                    </p>
+                    <p className="mt-1 text-xs text-emerald-700">Betyg 9–10</p>
                   </div>
 
                   <div className="rounded-xl bg-amber-50 p-5">
                     <p className="text-sm font-semibold text-amber-700">
                       Passives
                     </p>
-
                     <p className="mt-2 text-3xl font-bold text-amber-900">
                       {passives}
                     </p>
-
-                    <p className="mt-1 text-xs text-amber-700">
-                      Betyg 7–8
-                    </p>
+                    <p className="mt-1 text-xs text-amber-700">Betyg 7–8</p>
                   </div>
 
                   <div className="rounded-xl bg-red-50 p-5">
                     <p className="text-sm font-semibold text-red-700">
                       Detractors
                     </p>
-
                     <p className="mt-2 text-3xl font-bold text-red-900">
                       {detractors}
                     </p>
-
-                    <p className="mt-1 text-xs text-red-700">
-                      Betyg 0–6
-                    </p>
+                    <p className="mt-1 text-xs text-red-700">Betyg 0–6</p>
                   </div>
                 </div>
               </section>
 
-              {/* Genomsnitt */}
+              {/* TREND ÖVER TID */}
+
+              <section className="mt-10 rounded-2xl border border-slate-200 bg-white p-6 shadow-sm sm:p-8">
+                <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+                  <div>
+                    <h2 className="text-xl font-bold text-slate-900">
+                      Trend över tid
+                    </h2>
+
+                    <p className="mt-1 text-sm text-slate-500">
+                      Jämför samma kärnfråga mellan olika pulser.
+                    </p>
+                  </div>
+
+                  <div className="w-full sm:max-w-sm">
+                    <label
+                      htmlFor="trend-question"
+                      className="text-sm font-semibold text-slate-700"
+                    >
+                      Välj fråga
+                    </label>
+
+                    <select
+                      id="trend-question"
+                      value={trendQuestionId}
+                      onChange={(event) =>
+                        setTrendQuestionId(event.target.value)
+                      }
+                      className="mt-2 w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 outline-none focus:border-indigo-500 focus:ring-4 focus:ring-indigo-100"
+                    >
+                      {trendQuestions.map((question) => (
+                        <option
+                          key={question.question_id}
+                          value={question.question_id}
+                        >
+                          {question.text}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+
+                {selectedTrendQuestion && (
+                  <div className="mt-7">
+                    <div className="rounded-xl bg-slate-50 p-4">
+                      <p className="text-sm font-semibold leading-6 text-slate-800">
+                        {selectedTrendQuestion.text}
+                      </p>
+                    </div>
+
+                    {trendData.length > 0 ? (
+                      <>
+                        <div className="mt-8 flex min-h-64 items-end gap-4 overflow-x-auto border-b border-slate-200 pb-0">
+                          {trendData.map((item) => (
+                            <div
+                              key={item.roundId}
+                              className="flex min-w-28 flex-1 flex-col items-center justify-end"
+                            >
+                              <p className="mb-2 text-sm font-bold text-slate-900">
+                                {formatTrendValue(item.value)}
+                              </p>
+
+                              <div className="flex h-40 w-full max-w-20 items-end rounded-t-lg bg-slate-100">
+                                <div
+                                  className="w-full rounded-t-lg bg-indigo-600 transition-all"
+                                  style={{
+                                    height: `${getTrendBarHeight(item.value)}%`,
+                                  }}
+                                />
+                              </div>
+
+                              <div className="min-h-20 w-full px-1 pt-3 text-center">
+                                <p className="text-xs font-semibold leading-5 text-slate-700">
+                                  {item.name}
+                                </p>
+
+                                <p className="mt-1 text-xs text-slate-400">
+                                  {item.answerCount} svar
+                                </p>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+
+                        {trendData.length === 1 && (
+                          <p className="mt-4 text-sm text-slate-500">
+                            När fler pulser har svar kommer utvecklingen mellan
+                            pulserna att visas här.
+                          </p>
+                        )}
+                      </>
+                    ) : (
+                      <div className="mt-6 rounded-xl bg-slate-50 p-6 text-center">
+                        <p className="text-sm text-slate-500">
+                          Det finns ännu inga historiska svar för den här
+                          frågan.
+                        </p>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </section>
+
+              {/* GENOMSNITT */}
 
               <section className="mt-10">
                 <div className="mb-5">
@@ -785,20 +1032,15 @@ export default function ResultsPage() {
                   </h2>
 
                   <p className="mt-1 text-sm text-slate-500">
-                    Genomsnittligt betyg för skalfrågorna i den valda
-                    pulsen.
+                    Genomsnittligt betyg för skalfrågorna i den valda pulsen.
                   </p>
                 </div>
 
                 <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
                   {scaleQuestions.map((question) => {
-                    const average = calculateAverage(
-                      question.question_id,
-                    );
+                    const average = calculateAverage(question.question_id);
 
-                    const answerCount = getScores(
-                      question.question_id,
-                    ).length;
+                    const answerCount = getScores(question.question_id).length;
 
                     return (
                       <div
@@ -831,9 +1073,7 @@ export default function ResultsPage() {
                                 style={{
                                   width: `${Math.min(
                                     Math.max(
-                                      (average /
-                                        question.scale_max) *
-                                        100,
+                                      (average / question.scale_max) * 100,
                                       0,
                                     ),
                                     100,
@@ -853,7 +1093,7 @@ export default function ResultsPage() {
                 </div>
               </section>
 
-              {/* Kommentarer */}
+              {/* KOMMENTARER */}
 
               <section className="mt-10">
                 <div className="mb-5">
@@ -916,8 +1156,7 @@ export default function ResultsPage() {
                   </p>
 
                   <p className="mt-1 text-sm text-slate-500">
-                    Nya svar visas här när medarbetarna skickar in
-                    enkäten.
+                    Nya svar visas här när medarbetarna skickar in enkäten.
                   </p>
                 </div>
               )}
@@ -931,9 +1170,7 @@ export default function ResultsPage() {
 
             <button
               type="button"
-              onClick={() =>
-                router.push("/admin/settings/rounds")
-              }
+              onClick={() => router.push("/admin/settings/rounds")}
               className="mt-4 rounded-xl bg-indigo-600 px-5 py-3 font-semibold text-white transition hover:bg-indigo-700"
             >
               Skapa en puls
