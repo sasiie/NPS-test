@@ -7,6 +7,7 @@ import type { SurveyAnswers } from "@/types/survey";
 type DatabaseQuestion = {
   id: string;
   question_id: string;
+  question_number: string | null;
   text: string;
   type: "scale" | "text" | "multiple-choice";
   section: string;

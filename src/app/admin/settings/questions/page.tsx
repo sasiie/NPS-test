@@ -10,6 +10,7 @@ type QuestionType = "scale" | "text" | "multiple-choice";
 type Question = {
   id: string;
   question_id: string;
+  question_number: string | null;
   text: string;
   type: QuestionType;
   section: string;
@@ -1039,7 +1040,10 @@ export default function QuestionsPage() {
                   </div>
 
                   <span className="shrink-0 text-sm text-slate-400">
-                    #{question.position}
+                    {question.question_number && (
+                      <span>{question.question_number} · </span>
+                    )}
+                    <span>#{question.position}</span>
                   </span>
                 </div>
               </div>
