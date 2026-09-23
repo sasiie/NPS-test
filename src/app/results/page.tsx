@@ -10,11 +10,13 @@ type Question = {
   id: string;
   question_id: string;
   text: string;
-  type: "scale" | "text";
+  type: "scale" | "text" | "multiple-choice";
   section: string;
   position: number;
   required: boolean;
   active: boolean;
+  scale_max: 5 | 10;
+  is_rotating: boolean;
 };
 
 type SurveyRound = {
@@ -22,6 +24,8 @@ type SurveyRound = {
   created_at: string;
   name: string;
   active: boolean;
+  rotating_sections: string[];
+  open_question_ids: string[];
 };
 
 export default function ResultsPage() {
@@ -74,9 +78,21 @@ export default function ResultsPage() {
           throw roundsResult.error;
         }
 
-        const loadedRounds = (roundsResult.data ?? []) as SurveyRound[];
+        const loadedQuestions = (questionsResult.data ?? []).map(
+          (question) => ({
+            ...question,
+            scale_max: question.scale_max ?? 10,
+            is_rotating: question.is_rotating ?? false,
+          }),
+        ) as Question[];
 
-        setQuestions((questionsResult.data ?? []) as Question[]);
+        const loadedRounds = (roundsResult.data ?? []).map((round) => ({
+          ...round,
+          rotating_sections: round.rotating_sections ?? [],
+          open_question_ids: round.open_question_ids ?? [],
+        })) as SurveyRound[];
+
+        setQuestions(loadedQuestions);
         setRounds(loadedRounds);
 
         // Välj aktiv puls automatiskt.
@@ -146,10 +162,39 @@ export default function ResultsPage() {
     loadResponses();
   }, [selectedRoundId, router]);
 
+  const selectedRound = rounds.find((round) => round.id === selectedRoundId);
+
+  // ----- Frågor som faktiskt ingår i vald puls -----
+
+  const roundQuestions = selectedRound
+    ? questions.filter((question) => {
+        // Öppna avslutande frågor styrs av open_question_ids.
+        if (question.section === "comments") {
+          return selectedRound.open_question_ids.includes(question.question_id);
+        }
+
+        // Kärnfrågor ingår alltid.
+        if (!question.is_rotating) {
+          return true;
+        }
+
+        // Roterande frågor ingår bara om området valdes för pulsen.
+        return selectedRound.rotating_sections.includes(question.section);
+      })
+    : [];
+
   // ----- eNPS -----
 
+  const enpsQuestion = roundQuestions.find(
+    (question) =>
+      question.question_id === "enps" ||
+      (question.type === "scale" && question.scale_max === 10),
+  );
+
+  const enpsQuestionId = enpsQuestion?.question_id ?? "enps";
+
   const enpsScores = responses
-    .map((response) => Number(response.answers["enps"]))
+    .map((response) => Number(response.answers[enpsQuestionId]))
     .filter((score) => Number.isFinite(score));
 
   const promoters = enpsScores.filter((score) => score >= 9).length;
@@ -199,15 +244,14 @@ export default function ResultsPage() {
       );
   }
 
-  const scaleQuestions = questions.filter(
-    (question) => question.type === "scale" && question.question_id !== "enps",
+  const scaleQuestions = roundQuestions.filter(
+    (question) =>
+      question.type === "scale" && question.question_id !== enpsQuestionId,
   );
 
-  const textQuestions = questions.filter(
+  const textQuestions = roundQuestions.filter(
     (question) => question.type === "text",
   );
-
-  const selectedRound = rounds.find((round) => round.id === selectedRoundId);
 
   // ----- Exportera CSV -----
 
@@ -222,11 +266,14 @@ export default function ResultsPage() {
       return `"${text}"`;
     }
 
-    const headers = ["Datum", ...questions.map((question) => question.text)];
+    const headers = [
+      "Datum",
+      ...roundQuestions.map((question) => question.text),
+    ];
 
     const rows = responses.map((response) => [
       new Date(response.created_at).toLocaleString("sv-SE"),
-      ...questions.map(
+      ...roundQuestions.map(
         (question) => response.answers[question.question_id] ?? "",
       ),
     ]);
@@ -469,7 +516,7 @@ export default function ResultsPage() {
                 </h2>
 
                 <p className="mt-1 text-sm text-slate-500">
-                  Genomsnittligt betyg från 0 till 10.
+                  Genomsnittligt betyg för skalfrågorna i den valda pulsen.
                 </p>
               </div>
 
@@ -503,7 +550,9 @@ export default function ResultsPage() {
                               {average.toFixed(1)}
                             </p>
 
-                            <p className="pb-1 text-sm text-slate-400">/ 10</p>
+                            <p className="pb-1 text-sm text-slate-400">
+                              / {question.scale_max}
+                            </p>
                           </div>
 
                           <p className="mt-1 text-xs text-slate-400">
@@ -515,7 +564,10 @@ export default function ResultsPage() {
                               className="h-full rounded-full bg-indigo-600"
                               style={{
                                 width: `${Math.min(
-                                  Math.max((average / 10) * 100, 0),
+                                  Math.max(
+                                    (average / question.scale_max) * 100,
+                                    0,
+                                  ),
                                   100,
                                 )}%`,
                               }}
@@ -535,7 +587,7 @@ export default function ResultsPage() {
               {scaleQuestions.length === 0 && (
                 <div className="rounded-2xl border border-slate-200 bg-white p-6">
                   <p className="text-sm text-slate-500">
-                    Det finns inga skalfrågor att visa.
+                    Det finns inga skalfrågor att visa för den här pulsen.
                   </p>
                 </div>
               )}
@@ -556,7 +608,7 @@ export default function ResultsPage() {
 
               <div className="grid gap-6 lg:grid-cols-2">
                 {textQuestions.map((question) => {
-                  const answers = getTextAnswers(question.question_id);
+                  const questionAnswers = getTextAnswers(question.question_id);
 
                   return (
                     <div
@@ -576,12 +628,12 @@ export default function ResultsPage() {
                       </div>
 
                       <p className="mt-1 text-sm text-slate-500">
-                        {answers.length} svar
+                        {questionAnswers.length} svar
                       </p>
 
                       <div className="mt-5 space-y-3">
-                        {answers.length > 0 ? (
-                          answers.map((answer, index) => (
+                        {questionAnswers.length > 0 ? (
+                          questionAnswers.map((answer, index) => (
                             <div
                               key={`${question.id}-${index}`}
                               className="rounded-xl bg-slate-50 p-4"
@@ -601,6 +653,14 @@ export default function ResultsPage() {
                   );
                 })}
               </div>
+
+              {textQuestions.length === 0 && (
+                <div className="rounded-2xl border border-slate-200 bg-white p-6">
+                  <p className="text-sm text-slate-500">
+                    Det finns inga fritextfrågor att visa för den här pulsen.
+                  </p>
+                </div>
+              )}
             </section>
 
             {responses.length === 0 && (
