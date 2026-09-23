@@ -790,13 +790,7 @@ export default function Home() {
                 {/* SKALFRÅGA */}
                 {question.type === "scale" && (
                   <div className="mt-6">
-                    <div
-                      className={
-                        question.scale_max === 5
-                          ? "flex justify-between"
-                          : "flex justify-between"
-                      }
-                    >
+                    <div className="flex justify-center gap-3">
                       {(question.scale_max === 5
                         ? [1, 2, 3, 4, 5]
                         : [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
