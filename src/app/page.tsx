@@ -63,8 +63,8 @@ const sectionInfo: Record<string, { title: string; description?: string }> = {
 const sectionOrder = [
   "background",
   "enps",
-  "work-environment",
   "leadership",
+  "work-environment",
   "communication",
   "collaboration",
   "development",
