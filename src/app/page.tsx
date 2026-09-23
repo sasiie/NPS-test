@@ -34,7 +34,7 @@ const sectionInfo: Record<string, { title: string; description?: string }> = {
       "De här frågorna är frivilliga och används endast för att förstå resultaten på gruppnivå.",
   },
   enps: {
-    title: "Din arbetsplats",
+    title: "Trivsel",
     description: "Vi börjar med några övergripande frågor.",
   },
   "work-environment": {
