@@ -224,6 +224,17 @@ export default function RoundsPage() {
     }
   }
 
+  async function copySurveyLink() {
+    const surveyUrl = window.location.origin;
+
+    try {
+      await navigator.clipboard.writeText(surveyUrl);
+      alert("Enkätlänken har kopierats!");
+    } catch {
+      alert("Kunde inte kopiera länken.");
+    }
+  }
+
   async function closeRound(round: SurveyRound) {
     if (!round.active || isUpdating) return;
 
@@ -526,14 +537,24 @@ export default function RoundsPage() {
                   </div>
 
                   {round.active ? (
-                    <button
-                      type="button"
-                      onClick={() => closeRound(round)}
-                      disabled={isUpdating}
-                      className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-2 text-sm font-semibold text-amber-700 transition hover:bg-amber-100 disabled:cursor-not-allowed disabled:opacity-50"
-                    >
-                      Avsluta puls
-                    </button>
+                    <div className="flex flex-col gap-2">
+                      <button
+                        type="button"
+                        onClick={copySurveyLink}
+                        className="rounded-xl bg-indigo-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-indigo-700"
+                      >
+                        Kopiera enkätlänk
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => closeRound(round)}
+                        disabled={isUpdating}
+                        className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-2 text-sm font-semibold text-amber-700 transition hover:bg-amber-100 disabled:cursor-not-allowed disabled:opacity-50"
+                      >
+                        Avsluta puls
+                      </button>
+                    </div>
                   ) : (
                     <button
                       type="button"
