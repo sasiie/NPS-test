@@ -4,11 +4,14 @@ import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import type { SurveyAnswers } from "@/types/survey";
 
+type Language = "sv" | "en";
+
 type DatabaseQuestion = {
   id: string;
   question_id: string;
   question_number: string | null;
   text: string;
+  text_en: string | null;
   type: "scale" | "text" | "multiple-choice";
   section: string;
   position: number;
@@ -16,6 +19,7 @@ type DatabaseQuestion = {
   active: boolean;
   scale_max: 5 | 10;
   options: string[];
+  options_en: string[];
   show_if_question_id: string | null;
   show_if_values: string[];
   is_rotating: boolean;
@@ -23,43 +27,76 @@ type DatabaseQuestion = {
 
 type SurveySection = {
   id: string;
-  title: string;
-  description?: string;
   questions: DatabaseQuestion[];
 };
 
-const sectionInfo: Record<string, { title: string; description?: string }> = {
-  background: {
-    title: "Bakgrundsfrågor",
-    description:
-      "De här frågorna är frivilliga och används endast för att förstå resultaten på gruppnivå.",
+const sectionInfo = {
+  sv: {
+    background: {
+      title: "Bakgrundsfrågor",
+      description:
+        "De här frågorna är frivilliga och används endast för att förstå resultaten på gruppnivå.",
+    },
+    enps: {
+      title: "Trivsel",
+      description: "Vi börjar med några övergripande frågor.",
+    },
+    "work-environment": {
+      title: "Arbetsmiljö",
+      description: "Nu vill vi veta hur du upplever din arbetsmiljö.",
+    },
+    leadership: {
+      title: "Ledarskap",
+      description: "Några frågor om ledarskap och stöd.",
+    },
+    communication: {
+      title: "Kommunikation",
+    },
+    collaboration: {
+      title: "Samarbete",
+    },
+    development: {
+      title: "Utveckling",
+    },
+    comments: {
+      title: "Avslutande frågor",
+      description: "Här kan du lämna egna synpunkter.",
+    },
   },
-  enps: {
-    title: "Trivsel",
-    description: "Vi börjar med några övergripande frågor.",
+  en: {
+    background: {
+      title: "Background questions",
+      description:
+        "These questions are optional and are only used to understand results at group level.",
+    },
+    enps: {
+      title: "Well-being",
+      description: "We will start with a few general questions.",
+    },
+    "work-environment": {
+      title: "Work environment",
+      description:
+        "We would now like to know how you experience your work environment.",
+    },
+    leadership: {
+      title: "Leadership",
+      description: "A few questions about leadership and support.",
+    },
+    communication: {
+      title: "Communication",
+    },
+    collaboration: {
+      title: "Collaboration",
+    },
+    development: {
+      title: "Development",
+    },
+    comments: {
+      title: "Final questions",
+      description: "Here you can share your own comments.",
+    },
   },
-  "work-environment": {
-    title: "Arbetsmiljö",
-    description: "Nu vill vi veta hur du upplever din arbetsmiljö.",
-  },
-  leadership: {
-    title: "Ledarskap",
-    description: "Några frågor om ledarskap och stöd.",
-  },
-  communication: {
-    title: "Kommunikation",
-  },
-  collaboration: {
-    title: "Samarbete",
-  },
-  development: {
-    title: "Utveckling",
-  },
-  comments: {
-    title: "Avslutande frågor",
-    description: "Här kan du lämna egna synpunkter.",
-  },
-};
+} as const;
 
 const sectionOrder = [
   "background",
@@ -73,6 +110,7 @@ const sectionOrder = [
 ];
 
 export default function Home() {
+  const [language, setLanguage] = useState<Language>("sv");
   const [surveySections, setSurveySections] = useState<SurveySection[]>([]);
   const [currentStep, setCurrentStep] = useState(0);
   const [answers, setAnswers] = useState<SurveyAnswers>({});
@@ -109,7 +147,6 @@ export default function Home() {
       }
 
       const rotatingSections: string[] = activeRound.rotating_sections ?? [];
-
       const openQuestionIds: string[] = activeRound.open_question_ids ?? [];
 
       // 2. Hämta alla aktiva frågor.
@@ -128,7 +165,9 @@ export default function Home() {
 
       const allQuestions = (data ?? []).map((question) => ({
         ...question,
+        text_en: question.text_en ?? null,
         options: question.options ?? [],
+        options_en: question.options_en ?? [],
         show_if_question_id: question.show_if_question_id ?? null,
         show_if_values: question.show_if_values ?? [],
         is_rotating: question.is_rotating ?? false,
@@ -136,19 +175,14 @@ export default function Home() {
 
       // 3. Filtrera frågorna efter den aktiva pulsen.
       const questions = allQuestions.filter((question) => {
-        // Avslutande öppna frågor styrs helt av pulsens
-        // open_question_ids.
         if (question.section === "comments") {
           return openQuestionIds.includes(question.question_id);
         }
 
-        // Kärnfrågor visas alltid.
         if (!question.is_rotating) {
           return true;
         }
 
-        // Roterande frågor visas bara om deras område
-        // är valt i den aktiva pulsen.
         return rotatingSections.includes(question.section);
       });
 
@@ -161,12 +195,8 @@ export default function Home() {
         );
 
         if (!section) {
-          const info = sectionInfo[question.section];
-
           section = {
             id: question.section,
-            title: info?.title ?? question.section,
-            description: info?.description,
             questions: [],
           };
 
@@ -194,6 +224,45 @@ export default function Home() {
 
     loadSurvey();
   }, []);
+
+  function getQuestionText(question: DatabaseQuestion) {
+    if (language === "en" && question.text_en?.trim()) {
+      return question.text_en;
+    }
+
+    return question.text;
+  }
+
+  function getQuestionOptions(question: DatabaseQuestion) {
+    if (
+      language === "en" &&
+      question.options_en &&
+      question.options_en.length > 0
+    ) {
+      return question.options_en;
+    }
+
+    return question.options;
+  }
+
+  function getSectionInfo(sectionId: string) {
+    const info =
+      sectionInfo[language][
+        sectionId as keyof (typeof sectionInfo)[typeof language]
+      ];
+
+    if (!info) {
+      return {
+        title: sectionId,
+        description: undefined,
+      };
+    }
+
+    return {
+      title: info.title,
+      description: "description" in info ? info.description : undefined,
+    };
+  }
 
   function isQuestionVisible(
     question: DatabaseQuestion,
@@ -241,10 +310,24 @@ export default function Home() {
     });
   }
 
+  function selectMultipleChoiceAnswer(
+    question: DatabaseQuestion,
+    optionIndex: number,
+  ) {
+    // Vi sparar alltid det svenska/originala alternativet.
+    // På så sätt blir resultatet identiskt oavsett språk.
+    const originalOption =
+      question.options[optionIndex] ?? question.options_en[optionIndex] ?? "";
+
+    updateAnswer(question.question_id, originalOption);
+  }
+
   if (isLoading) {
     return (
       <main className="flex min-h-screen items-center justify-center bg-slate-50">
-        <p className="text-slate-600">Laddar enkät...</p>
+        <p className="text-slate-600">
+          {language === "sv" ? "Laddar enkät..." : "Loading survey..."}
+        </p>
       </main>
     );
   }
@@ -254,11 +337,16 @@ export default function Home() {
       <main className="flex min-h-screen items-center justify-center bg-slate-50 px-6">
         <div className="rounded-2xl border border-slate-200 bg-white p-8 text-center shadow-sm">
           <h1 className="text-xl font-bold text-slate-900">
-            Enkäten kunde inte laddas
+            {language === "sv"
+              ? "Enkäten kunde inte laddas"
+              : "The survey could not be loaded"}
           </h1>
 
           <p className="mt-3 text-slate-600">
-            {loadError || "Försök igen om en liten stund."}
+            {loadError ||
+              (language === "sv"
+                ? "Försök igen om en liten stund."
+                : "Please try again in a moment.")}
           </p>
         </div>
       </main>
@@ -270,18 +358,49 @@ export default function Home() {
       <main className="flex min-h-screen items-center justify-center bg-slate-50 px-4 py-10 sm:px-6">
         <div className="w-full max-w-2xl">
           <div className="rounded-3xl border border-slate-200 bg-white p-8 shadow-sm sm:p-12">
+            <div className="mb-6 flex justify-end">
+              <div className="inline-flex rounded-xl border border-slate-200 bg-slate-50 p-1">
+                <button
+                  type="button"
+                  onClick={() => setLanguage("sv")}
+                  className={`rounded-lg px-4 py-2 text-sm font-semibold transition ${
+                    language === "sv"
+                      ? "bg-white text-indigo-700 shadow-sm"
+                      : "text-slate-500 hover:text-slate-900"
+                  }`}
+                >
+                  Svenska
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setLanguage("en")}
+                  className={`rounded-lg px-4 py-2 text-sm font-semibold transition ${
+                    language === "en"
+                      ? "bg-white text-indigo-700 shadow-sm"
+                      : "text-slate-500 hover:text-slate-900"
+                  }`}
+                >
+                  English
+                </button>
+              </div>
+            </div>
+
             <div className="mb-8">
               <p className="text-sm font-semibold text-indigo-600">
-                Medarbetarpuls
+                {language === "sv" ? "Medarbetarpuls" : "Employee survey"}
               </p>
 
               <h1 className="mt-3 text-3xl font-bold tracking-tight text-slate-900 sm:text-4xl">
-                Vi vill höra vad du tycker
+                {language === "sv"
+                  ? "Vi vill höra vad du tycker"
+                  : "We want to hear what you think"}
               </h1>
 
               <p className="mt-4 text-base leading-7 text-slate-600">
-                Den här medarbetarpulsen hjälper oss att förstå hur du upplever
-                din arbetsplats, arbetsmiljö, ledarskap och utveckling.
+                {language === "sv"
+                  ? "Den här medarbetarpulsen hjälper oss att förstå hur du upplever din arbetsplats, arbetsmiljö, ledarskap och utveckling."
+                  : "This employee survey helps us understand how you experience your workplace, work environment, leadership and development."}
               </p>
             </div>
 
@@ -293,12 +412,15 @@ export default function Home() {
 
                 <div>
                   <p className="font-semibold text-slate-900">
-                    Dina svar samlas in anonymt
+                    {language === "sv"
+                      ? "Dina svar samlas in anonymt"
+                      : "Your responses are collected anonymously"}
                   </p>
 
                   <p className="mt-1 text-sm leading-6 text-slate-600">
-                    Vi ber inte om ditt namn eller andra personuppgifter i
-                    enkäten.
+                    {language === "sv"
+                      ? "Vi ber inte om ditt namn eller andra personuppgifter i enkäten."
+                      : "We do not ask for your name or other personal information in the survey."}
                   </p>
                 </div>
               </div>
@@ -310,12 +432,15 @@ export default function Home() {
 
                 <div>
                   <p className="font-semibold text-slate-900">
-                    Det tar bara några minuter
+                    {language === "sv"
+                      ? "Det tar bara några minuter"
+                      : "It only takes a few minutes"}
                   </p>
 
                   <p className="mt-1 text-sm leading-6 text-slate-600">
-                    Enkäten består av korta frågor med skalfrågor,
-                    flervalsfrågor och möjlighet att lämna egna kommentarer.
+                    {language === "sv"
+                      ? "Enkäten består av korta frågor med skalfrågor, flervalsfrågor och möjlighet att lämna egna kommentarer."
+                      : "The survey consists of short rating questions, multiple-choice questions and the option to leave your own comments."}
                   </p>
                 </div>
               </div>
@@ -327,13 +452,15 @@ export default function Home() {
 
                 <div>
                   <p className="font-semibold text-slate-900">
-                    Svara så ärligt du kan
+                    {language === "sv"
+                      ? "Svara så ärligt du kan"
+                      : "Answer as honestly as you can"}
                   </p>
 
                   <p className="mt-1 text-sm leading-6 text-slate-600">
-                    Det finns inga rätt eller fel svar. Dina synpunkter hjälper
-                    till att identifiera vad som fungerar bra och vad som kan
-                    förbättras.
+                    {language === "sv"
+                      ? "Det finns inga rätt eller fel svar. Dina synpunkter hjälper till att identifiera vad som fungerar bra och vad som kan förbättras."
+                      : "There are no right or wrong answers. Your feedback helps identify what works well and what can be improved."}
                   </p>
                 </div>
               </div>
@@ -344,12 +471,14 @@ export default function Home() {
               onClick={() => setSurveyStarted(true)}
               className="mt-8 w-full rounded-xl bg-indigo-600 px-6 py-4 text-base font-semibold text-white shadow-sm transition hover:bg-indigo-700 focus:outline-none focus:ring-4 focus:ring-indigo-200"
             >
-              Starta enkäten
+              {language === "sv" ? "Starta enkäten" : "Start survey"}
               <span className="ml-2">→</span>
             </button>
 
             <p className="mt-5 text-center text-xs leading-5 text-slate-400">
-              Ditt deltagande är frivilligt.
+              {language === "sv"
+                ? "Ditt deltagande är frivilligt."
+                : "Your participation is voluntary."}
             </p>
           </div>
         </div>
@@ -358,6 +487,7 @@ export default function Home() {
   }
 
   const currentSection = surveySections[currentStep];
+  const currentSectionInfo = getSectionInfo(currentSection.id);
 
   const isFirstStep = currentStep === 0;
   const isLastStep = currentStep === surveySections.length - 1;
@@ -433,7 +563,12 @@ export default function Home() {
       setSubmitted(true);
     } catch (error) {
       console.error(error);
-      alert("Något gick fel när svaren skulle skickas.");
+
+      alert(
+        language === "sv"
+          ? "Något gick fel när svaren skulle skickas."
+          : "Something went wrong when submitting your responses.",
+      );
     } finally {
       setIsSubmitting(false);
     }
@@ -448,11 +583,15 @@ export default function Home() {
           </div>
 
           <h1 className="mt-6 text-3xl font-bold tracking-tight text-slate-900">
-            Tack för ditt svar!
+            {language === "sv"
+              ? "Tack för ditt svar!"
+              : "Thank you for your response!"}
           </h1>
 
           <p className="mt-4 text-base leading-7 text-slate-600">
-            Ditt svar har skickats in.
+            {language === "sv"
+              ? "Ditt svar har skickats in."
+              : "Your response has been submitted."}
           </p>
         </div>
       </main>
@@ -462,14 +601,43 @@ export default function Home() {
   return (
     <main className="min-h-screen bg-slate-50 px-4 py-10 sm:px-6">
       <div className="mx-auto max-w-3xl">
+        <div className="mb-6 flex justify-end">
+          <div className="inline-flex rounded-xl border border-slate-200 bg-white p-1 shadow-sm">
+            <button
+              type="button"
+              onClick={() => setLanguage("sv")}
+              className={`rounded-lg px-4 py-2 text-sm font-semibold transition ${
+                language === "sv"
+                  ? "bg-indigo-600 text-white"
+                  : "text-slate-500 hover:text-slate-900"
+              }`}
+            >
+              Svenska
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setLanguage("en")}
+              className={`rounded-lg px-4 py-2 text-sm font-semibold transition ${
+                language === "en"
+                  ? "bg-indigo-600 text-white"
+                  : "text-slate-500 hover:text-slate-900"
+              }`}
+            >
+              English
+            </button>
+          </div>
+        </div>
+
         <div className="mb-10">
           <div className="mb-3 flex items-center justify-between">
             <p className="text-sm font-medium text-indigo-700">
-              Steg {currentStep + 1}
+              {language === "sv" ? "Steg" : "Step"} {currentStep + 1}
             </p>
 
             <p className="text-sm text-slate-500">
-              {currentStep + 1} av {surveySections.length}
+              {currentStep + 1} {language === "sv" ? "av" : "of"}{" "}
+              {surveySections.length}
             </p>
           </div>
 
@@ -485,12 +653,12 @@ export default function Home() {
 
         <header className="mb-8">
           <h1 className="text-3xl font-bold tracking-tight text-slate-900">
-            {currentSection.title}
+            {currentSectionInfo.title}
           </h1>
 
-          {currentSection.description && (
+          {currentSectionInfo.description && (
             <p className="mt-3 max-w-2xl text-base leading-7 text-slate-600">
-              {currentSection.description}
+              {currentSectionInfo.description}
             </p>
           )}
         </header>
@@ -498,6 +666,7 @@ export default function Home() {
         <div className="space-y-5">
           {visibleQuestions.map((question) => {
             const answer = answers[question.question_id];
+            const displayedOptions = getQuestionOptions(question);
 
             const hasError =
               question.required &&
@@ -512,7 +681,7 @@ export default function Home() {
                 }`}
               >
                 <h2 className="text-base font-semibold leading-6 text-slate-900">
-                  {question.text}
+                  {getQuestionText(question)}
 
                   {question.required && (
                     <span className="ml-1 text-indigo-600">*</span>
@@ -524,7 +693,9 @@ export default function Home() {
                     role="alert"
                     className="mt-2 text-sm font-medium text-red-600"
                   >
-                    Du behöver svara på den här frågan.
+                    {language === "sv"
+                      ? "Du behöver svara på den här frågan."
+                      : "You need to answer this question."}
                   </p>
                 )}
 
@@ -569,15 +740,23 @@ export default function Home() {
 
                     <div className="mt-3 flex justify-between text-xs text-slate-500">
                       <span>
-                        {question.scale_max === 5
-                          ? "Instämmer inte alls"
-                          : "Inte alls"}
+                        {language === "sv"
+                          ? question.scale_max === 5
+                            ? "Instämmer inte alls"
+                            : "Inte alls"
+                          : question.scale_max === 5
+                            ? "Strongly disagree"
+                            : "Not at all"}
                       </span>
 
                       <span>
-                        {question.scale_max === 5
-                          ? "Instämmer helt"
-                          : "I mycket hög grad"}
+                        {language === "sv"
+                          ? question.scale_max === 5
+                            ? "Instämmer helt"
+                            : "I mycket hög grad"
+                          : question.scale_max === 5
+                            ? "Strongly agree"
+                            : "To a very high degree"}
                       </span>
                     </div>
                   </div>
@@ -586,8 +765,14 @@ export default function Home() {
                 {/* FLERVALSFRÅGA */}
                 {question.type === "multiple-choice" && (
                   <div className="mt-5 space-y-3">
-                    {question.options.map((option, index) => {
-                      const selected = answers[question.question_id] === option;
+                    {displayedOptions.map((option, index) => {
+                      const originalOption =
+                        question.options[index] ??
+                        question.options_en[index] ??
+                        option;
+
+                      const selected =
+                        answers[question.question_id] === originalOption;
 
                       return (
                         <button
@@ -595,7 +780,7 @@ export default function Home() {
                           type="button"
                           aria-pressed={selected}
                           onClick={() =>
-                            updateAnswer(question.question_id, option)
+                            selectMultipleChoiceAnswer(question, index)
                           }
                           className={`flex w-full items-center gap-3 rounded-xl border p-4 text-left transition ${
                             selected
@@ -636,7 +821,11 @@ export default function Home() {
                         ? "border-red-400 focus:border-red-500 focus:ring-red-100"
                         : "border-slate-200 focus:border-indigo-500 focus:ring-indigo-100"
                     }`}
-                    placeholder="Skriv ditt svar här..."
+                    placeholder={
+                      language === "sv"
+                        ? "Skriv ditt svar här..."
+                        : "Write your answer here..."
+                    }
                   />
                 )}
               </section>
@@ -649,8 +838,9 @@ export default function Home() {
             role="alert"
             className="mt-6 rounded-xl border border-red-200 bg-red-50 p-4 text-sm font-medium text-red-700"
           >
-            Du behöver svara på alla obligatoriska frågor innan du kan gå
-            vidare.
+            {language === "sv"
+              ? "Du behöver svara på alla obligatoriska frågor innan du kan gå vidare."
+              : "You need to answer all required questions before you can continue."}
           </div>
         )}
 
@@ -666,7 +856,7 @@ export default function Home() {
             }}
             className="rounded-xl px-5 py-3 font-medium text-slate-600 transition hover:bg-slate-100 hover:text-slate-900"
           >
-            ← Tillbaka
+            ← {language === "sv" ? "Tillbaka" : "Back"}
           </button>
 
           {!isLastStep ? (
@@ -675,7 +865,7 @@ export default function Home() {
               onClick={nextStep}
               className="rounded-xl bg-indigo-600 px-6 py-3 font-semibold text-white shadow-sm transition hover:bg-indigo-700 focus:outline-none focus:ring-4 focus:ring-indigo-200"
             >
-              Nästa
+              {language === "sv" ? "Nästa" : "Next"}
               <span className="ml-2">→</span>
             </button>
           ) : (
@@ -685,13 +875,19 @@ export default function Home() {
               disabled={isSubmitting}
               className="rounded-xl bg-indigo-600 px-6 py-3 font-semibold text-white shadow-sm transition hover:bg-indigo-700 focus:outline-none focus:ring-4 focus:ring-indigo-200 disabled:cursor-not-allowed disabled:opacity-50"
             >
-              {isSubmitting ? "Skickar..." : "Skicka svar"}
+              {isSubmitting
+                ? language === "sv"
+                  ? "Skickar..."
+                  : "Submitting..."
+                : language === "sv"
+                  ? "Skicka svar"
+                  : "Submit responses"}
             </button>
           )}
         </div>
 
         <p className="mt-6 text-center text-xs text-slate-400">
-          * Obligatorisk fråga
+          * {language === "sv" ? "Obligatorisk fråga" : "Required question"}
         </p>
       </div>
     </main>
