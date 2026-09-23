@@ -407,6 +407,11 @@ export default function Home() {
             </div>
 
             <div className="mb-8">
+              <img
+                src="/balzac-katt.svg"
+                alt="Balzac"
+                className="mb-5 h-20 w-auto"
+              />
               <p className="text-sm font-semibold text-indigo-600">
                 {language === "sv" ? "Medarbetarpuls" : "Employee survey"}
               </p>
