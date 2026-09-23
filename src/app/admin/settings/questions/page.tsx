@@ -26,6 +26,8 @@ const sectionOptions = [
   { value: "enps", label: "Din arbetsplats" },
   { value: "work-environment", label: "Arbetsmiljö" },
   { value: "leadership", label: "Ledarskap" },
+  { value: "communication", label: "Kommunikation" },
+  { value: "collaboration", label: "Samarbete" },
   { value: "development", label: "Utveckling" },
   { value: "comments", label: "Avslutande frågor" },
 ];
