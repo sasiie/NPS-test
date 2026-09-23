@@ -87,10 +87,10 @@ export default function Home() {
       setIsLoading(true);
       setLoadError("");
 
-      // Hämta den aktiva pulsen.
+      // 1. Hämta den aktiva pulsen.
       const { data: activeRound, error: roundError } = await supabase
         .from("survey-rounds")
-        .select("id, name, rotating_sections")
+        .select("id, name, rotating_sections, open_question_ids")
         .eq("active", true)
         .maybeSingle();
 
@@ -109,7 +109,9 @@ export default function Home() {
 
       const rotatingSections: string[] = activeRound.rotating_sections ?? [];
 
-      // Hämta alla aktiva frågor.
+      const openQuestionIds: string[] = activeRound.open_question_ids ?? [];
+
+      // 2. Hämta alla aktiva frågor.
       const { data, error } = await supabase
         .from("survey-questions")
         .select("*")
@@ -131,25 +133,25 @@ export default function Home() {
         is_rotating: question.is_rotating ?? false,
       })) as DatabaseQuestion[];
 
-      // Filtrera frågorna utifrån den aktiva pulsen.
+      // 3. Filtrera frågorna efter den aktiva pulsen.
       const questions = allQuestions.filter((question) => {
+        // Avslutande öppna frågor styrs helt av pulsens
+        // open_question_ids.
+        if (question.section === "comments") {
+          return openQuestionIds.includes(question.question_id);
+        }
+
         // Kärnfrågor visas alltid.
         if (!question.is_rotating) {
           return true;
         }
 
-        // Roterande avslutande frågor, till exempel Ö3 och Ö4,
-        // visas när pulsen innehåller minst ett roterande område.
-        if (question.section === "comments") {
-          return rotatingSections.length > 0;
-        }
-
-        // Övriga roterande frågor visas bara när deras
-        // frågeområde är valt för den aktiva pulsen.
+        // Roterande frågor visas bara om deras område
+        // är valt i den aktiva pulsen.
         return rotatingSections.includes(question.section);
       });
 
-      // Bygg sektionerna.
+      // 4. Bygg sektionerna.
       const sections: SurveySection[] = [];
 
       for (const question of questions) {
@@ -173,12 +175,13 @@ export default function Home() {
         section.questions.push(question);
       }
 
-      // Sortera sektionerna i önskad ordning.
+      // 5. Sortera sektionerna.
       const sortedSections = [...sections].sort((a, b) => {
         const aIndex = sectionOrder.indexOf(a.id);
         const bIndex = sectionOrder.indexOf(b.id);
 
         const safeAIndex = aIndex === -1 ? Number.MAX_SAFE_INTEGER : aIndex;
+
         const safeBIndex = bIndex === -1 ? Number.MAX_SAFE_INTEGER : bIndex;
 
         return safeAIndex - safeBIndex;
@@ -195,7 +198,9 @@ export default function Home() {
     question: DatabaseQuestion,
     currentAnswers: SurveyAnswers = answers,
   ) {
-    if (!question.show_if_question_id) return true;
+    if (!question.show_if_question_id) {
+      return true;
+    }
 
     const parentAnswer = currentAnswers[question.show_if_question_id];
 
