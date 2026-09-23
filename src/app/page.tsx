@@ -86,7 +86,7 @@ const sectionInfo = {
       title: "Communication",
     },
     collaboration: {
-      title: "CollaboratTeamwork & Collaboration",
+      title: "Teamwork & Collaboration",
     },
     development: {
       title: "Development",
@@ -492,9 +492,41 @@ export default function Home() {
   const isFirstStep = currentStep === 0;
   const isLastStep = currentStep === surveySections.length - 1;
 
-  const visibleQuestions = currentSection.questions.filter((question) =>
-    isQuestionVisible(question),
-  );
+  const visibleQuestions = (() => {
+    const visible = currentSection.questions.filter((question) =>
+      isQuestionVisible(question),
+    );
+
+    const mainQuestions = visible.filter(
+      (question) => !question.show_if_question_id,
+    );
+
+    const orderedQuestions: DatabaseQuestion[] = [];
+
+    for (const question of mainQuestions) {
+      orderedQuestions.push(question);
+
+      const followUpQuestions = visible.filter(
+        (candidate) => candidate.show_if_question_id === question.question_id,
+      );
+
+      orderedQuestions.push(...followUpQuestions);
+    }
+
+    // Säkerhet: om en följdfråga av någon anledning inte hittar
+    // sin huvudfråga i samma sektion ska den ändå visas.
+    const addedIds = new Set(
+      orderedQuestions.map((question) => question.question_id),
+    );
+
+    for (const question of visible) {
+      if (!addedIds.has(question.question_id)) {
+        orderedQuestions.push(question);
+      }
+    }
+
+    return orderedQuestions;
+  })();
 
   const allRequiredAnswered = visibleQuestions
     .filter((question) => question.required)
@@ -667,6 +699,7 @@ export default function Home() {
           {visibleQuestions.map((question) => {
             const answer = answers[question.question_id];
             const displayedOptions = getQuestionOptions(question);
+            const isFollowUp = Boolean(question.show_if_question_id);
 
             const hasError =
               question.required &&
@@ -676,10 +709,27 @@ export default function Home() {
             return (
               <section
                 key={question.id}
-                className={`rounded-2xl border bg-white p-6 shadow-sm sm:p-8 ${
-                  hasError ? "border-red-400" : "border-slate-200"
+                className={`rounded-2xl border p-6 shadow-sm sm:p-8 ${
+                  hasError
+                    ? "border-red-400 bg-white"
+                    : isFollowUp
+                      ? "border-indigo-200 bg-indigo-50/50"
+                      : "border-slate-200 bg-white"
                 }`}
               >
+                {isFollowUp && (
+                  <div className="mb-4">
+                    <span className="inline-flex rounded-full bg-indigo-100 px-3 py-1 text-xs font-semibold text-indigo-700">
+                      {language === "sv" ? "Följdfråga" : "Follow-up question"}
+                    </span>
+
+                    <p className="mt-2 text-sm text-slate-600">
+                      {language === "sv"
+                        ? "Utifrån ditt svar på frågan ovan vill vi gärna veta lite mer."
+                        : "Based on your answer to the question above, we'd like to know a little more."}
+                    </p>
+                  </div>
+                )}
                 <h2 className="text-base font-semibold leading-6 text-slate-900">
                   {getQuestionText(question)}
 

@@ -12,6 +12,7 @@ type Question = {
   question_id: string;
   question_number: string | null;
   text: string;
+  text_en: string | null;
   type: QuestionType;
   section: string;
   position: number;
@@ -19,6 +20,7 @@ type Question = {
   active: boolean;
   scale_max: 5 | 10;
   options: string[];
+  options_en: string[];
   show_if_question_id: string | null;
   show_if_values: string[];
 };
@@ -45,10 +47,12 @@ export default function QuestionsPage() {
   const [showHiddenQuestions, setShowHiddenQuestions] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editedText, setEditedText] = useState("");
+  const [editedTextEn, setEditedTextEn] = useState("");
   const [editedSection, setEditedSection] = useState("");
   const [editedScaleMax, setEditedScaleMax] = useState<5 | 10>(10);
   const [editedRequired, setEditedRequired] = useState(true);
   const [editedOptions, setEditedOptions] = useState<string[]>([]);
+  const [editedOptionsEn, setEditedOptionsEn] = useState<string[]>([]);
   const [editedShowIfQuestionId, setEditedShowIfQuestionId] = useState("");
   const [editedShowIfValues, setEditedShowIfValues] = useState<string[]>([]);
   const [isSaving, setIsSaving] = useState(false);
@@ -56,11 +60,13 @@ export default function QuestionsPage() {
   // Lägg till fråga
   const [showAddForm, setShowAddForm] = useState(false);
   const [newText, setNewText] = useState("");
+  const [newTextEn, setNewTextEn] = useState("");
   const [newType, setNewType] = useState<QuestionType>("scale");
   const [newSection, setNewSection] = useState("enps");
   const [newRequired, setNewRequired] = useState(true);
   const [newScaleMax, setNewScaleMax] = useState<5 | 10>(10);
   const [newOptions, setNewOptions] = useState<string[]>(["", ""]);
+  const [newOptionsEn, setNewOptionsEn] = useState<string[]>(["", ""]);
   const [newShowIfQuestionId, setNewShowIfQuestionId] = useState("");
   const [newShowIfValues, setNewShowIfValues] = useState<string[]>([]);
   const [isAdding, setIsAdding] = useState(false);
@@ -95,7 +101,9 @@ export default function QuestionsPage() {
 
       const normalizedQuestions = (data ?? []).map((question) => ({
         ...question,
+        text_en: question.text_en ?? null,
         options: question.options ?? [],
+        options_en: question.options_en ?? [],
         show_if_question_id: question.show_if_question_id ?? null,
         show_if_values: question.show_if_values ?? [],
       })) as Question[];
@@ -110,9 +118,11 @@ export default function QuestionsPage() {
   function startEditing(question: Question) {
     setEditingId(question.id);
     setEditedText(question.text);
+    setEditedTextEn(question.text_en ?? "");
     setEditedSection(question.section);
     setEditedScaleMax(question.scale_max);
     setEditedRequired(question.required);
+
     setEditedOptions(
       question.type === "multiple-choice"
         ? question.options?.length
@@ -120,6 +130,20 @@ export default function QuestionsPage() {
           : ["", ""]
         : [],
     );
+
+    if (question.type === "multiple-choice") {
+      const optionCount = question.options?.length || 2;
+
+      setEditedOptionsEn(
+        Array.from(
+          { length: optionCount },
+          (_, index) => question.options_en?.[index] ?? "",
+        ),
+      );
+    } else {
+      setEditedOptionsEn([]);
+    }
+
     setEditedShowIfQuestionId(question.show_if_question_id ?? "");
     setEditedShowIfValues(question.show_if_values ?? []);
     setError("");
@@ -128,10 +152,12 @@ export default function QuestionsPage() {
   function cancelEditing() {
     setEditingId(null);
     setEditedText("");
+    setEditedTextEn("");
     setEditedSection("");
     setEditedScaleMax(10);
     setEditedRequired(true);
     setEditedOptions([]);
+    setEditedOptionsEn([]);
     setEditedShowIfQuestionId("");
     setEditedShowIfValues([]);
   }
@@ -144,8 +170,20 @@ export default function QuestionsPage() {
     );
   }
 
+  function updateNewOptionEn(index: number, value: string) {
+    setNewOptionsEn((previous) =>
+      previous.map((option, optionIndex) =>
+        optionIndex === index ? value : option,
+      ),
+    );
+  }
+
   function removeNewOption(index: number) {
     setNewOptions((previous) =>
+      previous.filter((_, optionIndex) => optionIndex !== index),
+    );
+
+    setNewOptionsEn((previous) =>
       previous.filter((_, optionIndex) => optionIndex !== index),
     );
   }
@@ -158,8 +196,20 @@ export default function QuestionsPage() {
     );
   }
 
+  function updateEditedOptionEn(index: number, value: string) {
+    setEditedOptionsEn((previous) =>
+      previous.map((option, optionIndex) =>
+        optionIndex === index ? value : option,
+      ),
+    );
+  }
+
   function removeEditedOption(index: number) {
     setEditedOptions((previous) =>
+      previous.filter((_, optionIndex) => optionIndex !== index),
+    );
+
+    setEditedOptionsEn((previous) =>
       previous.filter((_, optionIndex) => optionIndex !== index),
     );
   }
@@ -177,23 +227,52 @@ export default function QuestionsPage() {
 
   async function saveQuestion(question: Question) {
     const trimmedText = editedText.trim();
+    const trimmedTextEn = editedTextEn.trim();
 
     if (!trimmedText) {
-      setError("Frågetexten får inte vara tom.");
+      setError("Frågetexten på svenska får inte vara tom.");
       return;
     }
 
     const cleanedOptions =
       question.type === "multiple-choice"
-        ? editedOptions
-            .map((option) => option.trim())
-            .filter((option) => option !== "")
+        ? editedOptions.map((option) => option.trim())
         : [];
 
-    if (question.type === "multiple-choice" && cleanedOptions.length < 2) {
+    const cleanedOptionsEn =
+      question.type === "multiple-choice"
+        ? editedOptionsEn.map((option) => option.trim())
+        : [];
+
+    if (
+      question.type === "multiple-choice" &&
+      cleanedOptions.filter((option) => option !== "").length < 2
+    ) {
       setError("En flervalsfråga måste ha minst två svarsalternativ.");
       return;
     }
+
+    if (
+      question.type === "multiple-choice" &&
+      cleanedOptionsEn.some((option, index) => {
+        return cleanedOptions[index] && !option;
+      })
+    ) {
+      setError(
+        "Fyll i ett engelskt svarsalternativ för varje svenskt alternativ.",
+      );
+      return;
+    }
+
+    const finalOptions =
+      question.type === "multiple-choice"
+        ? cleanedOptions.filter((option) => option !== "")
+        : [];
+
+    const finalOptionsEn =
+      question.type === "multiple-choice"
+        ? cleanedOptionsEn.filter((_, index) => cleanedOptions[index] !== "")
+        : [];
 
     try {
       setIsSaving(true);
@@ -203,10 +282,12 @@ export default function QuestionsPage() {
         .from("survey-questions")
         .update({
           text: trimmedText,
+          text_en: trimmedTextEn || null,
           section: editedSection,
           required: editedRequired,
           scale_max: editedScaleMax,
-          options: cleanedOptions,
+          options: finalOptions,
+          options_en: finalOptionsEn,
           show_if_question_id: editedShowIfQuestionId || null,
           show_if_values: editedShowIfQuestionId ? editedShowIfValues : [],
         })
@@ -222,10 +303,12 @@ export default function QuestionsPage() {
             ? {
                 ...item,
                 text: trimmedText,
+                text_en: trimmedTextEn || null,
                 section: editedSection,
                 required: editedRequired,
                 scale_max: editedScaleMax,
-                options: cleanedOptions,
+                options: finalOptions,
+                options_en: finalOptionsEn,
                 show_if_question_id: editedShowIfQuestionId || null,
                 show_if_values: editedShowIfQuestionId
                   ? editedShowIfValues
@@ -279,23 +362,52 @@ export default function QuestionsPage() {
 
   async function addQuestion() {
     const trimmedText = newText.trim();
+    const trimmedTextEn = newTextEn.trim();
 
     if (!trimmedText) {
-      setError("Du behöver skriva en frågetext.");
+      setError("Du behöver skriva en svensk frågetext.");
       return;
     }
 
     const cleanedOptions =
       newType === "multiple-choice"
-        ? newOptions
-            .map((option) => option.trim())
-            .filter((option) => option !== "")
+        ? newOptions.map((option) => option.trim())
         : [];
 
-    if (newType === "multiple-choice" && cleanedOptions.length < 2) {
+    const cleanedOptionsEn =
+      newType === "multiple-choice"
+        ? newOptionsEn.map((option) => option.trim())
+        : [];
+
+    if (
+      newType === "multiple-choice" &&
+      cleanedOptions.filter((option) => option !== "").length < 2
+    ) {
       setError("En flervalsfråga måste ha minst två svarsalternativ.");
       return;
     }
+
+    if (
+      newType === "multiple-choice" &&
+      cleanedOptionsEn.some((option, index) => {
+        return cleanedOptions[index] && !option;
+      })
+    ) {
+      setError(
+        "Fyll i ett engelskt svarsalternativ för varje svenskt alternativ.",
+      );
+      return;
+    }
+
+    const finalOptions =
+      newType === "multiple-choice"
+        ? cleanedOptions.filter((option) => option !== "")
+        : [];
+
+    const finalOptionsEn =
+      newType === "multiple-choice"
+        ? cleanedOptionsEn.filter((_, index) => cleanedOptions[index] !== "")
+        : [];
 
     try {
       setIsAdding(true);
@@ -313,12 +425,14 @@ export default function QuestionsPage() {
         .insert({
           question_id: questionId,
           text: trimmedText,
+          text_en: trimmedTextEn || null,
           type: newType,
           section: newSection,
           position: nextPosition,
           required: newRequired,
           scale_max: newScaleMax,
-          options: cleanedOptions,
+          options: finalOptions,
+          options_en: finalOptionsEn,
           active: true,
           show_if_question_id: newShowIfQuestionId || null,
           show_if_values: newShowIfQuestionId ? newShowIfValues : [],
@@ -334,18 +448,22 @@ export default function QuestionsPage() {
         ...previous,
         {
           ...(data as Question),
+          text_en: data.text_en ?? null,
           options: data.options ?? [],
+          options_en: data.options_en ?? [],
           show_if_question_id: data.show_if_question_id ?? null,
           show_if_values: data.show_if_values ?? [],
         },
       ]);
 
       setNewText("");
+      setNewTextEn("");
       setNewType("scale");
       setNewSection("enps");
       setNewRequired(true);
       setNewScaleMax(10);
       setNewOptions(["", ""]);
+      setNewOptionsEn(["", ""]);
       setNewShowIfQuestionId("");
       setNewShowIfValues([]);
       setShowAddForm(false);
@@ -398,6 +516,13 @@ export default function QuestionsPage() {
     return "Text";
   }
 
+  function getSectionLabel(sectionValue: string) {
+    return (
+      sectionOptions.find((section) => section.value === sectionValue)?.label ??
+      sectionValue
+    );
+  }
+
   if (isLoading) {
     return (
       <main className="flex min-h-screen items-center justify-center bg-slate-50">
@@ -420,7 +545,7 @@ export default function QuestionsPage() {
             <h1 className="mt-2 text-3xl font-bold text-slate-900">Frågor</h1>
 
             <p className="mt-2 text-slate-600">
-              Hantera frågorna som visas i medarbetarpulsen.
+              Hantera svenska och engelska frågor som visas i medarbetarpulsen.
             </p>
           </div>
 
@@ -452,22 +577,37 @@ export default function QuestionsPage() {
 
         {/* LÄGG TILL FRÅGA */}
         {showAddForm && (
-          <div className="mb-8 rounded-2xl border border-indigo-200 bg-white p-6 shadow-sm">
+          <div className="mb-8 mt-6 rounded-2xl border border-indigo-200 bg-white p-6 shadow-sm">
             <h2 className="text-xl font-bold text-slate-900">
               Lägg till fråga
             </h2>
 
-            <div className="mt-5">
-              <label className="text-sm font-medium text-slate-700">
-                Frågetext
-              </label>
+            <div className="mt-5 grid gap-5 sm:grid-cols-2">
+              <div>
+                <label className="text-sm font-semibold text-slate-700">
+                  🇸🇪 Fråga på svenska
+                </label>
 
-              <textarea
-                value={newText}
-                onChange={(event) => setNewText(event.target.value)}
-                className="mt-2 min-h-28 w-full resize-y rounded-xl border border-slate-200 p-4 text-slate-900 outline-none transition focus:border-indigo-500 focus:ring-4 focus:ring-indigo-100"
-                placeholder="Skriv frågan här..."
-              />
+                <textarea
+                  value={newText}
+                  onChange={(event) => setNewText(event.target.value)}
+                  className="mt-2 min-h-28 w-full resize-y rounded-xl border border-slate-200 p-4 text-slate-900 outline-none transition focus:border-indigo-500 focus:ring-4 focus:ring-indigo-100"
+                  placeholder="Skriv frågan på svenska..."
+                />
+              </div>
+
+              <div>
+                <label className="text-sm font-semibold text-slate-700">
+                  🇬🇧 Question in English
+                </label>
+
+                <textarea
+                  value={newTextEn}
+                  onChange={(event) => setNewTextEn(event.target.value)}
+                  className="mt-2 min-h-28 w-full resize-y rounded-xl border border-slate-200 p-4 text-slate-900 outline-none transition focus:border-indigo-500 focus:ring-4 focus:ring-indigo-100"
+                  placeholder="Write the question in English..."
+                />
+              </div>
             </div>
 
             <div className="mt-5 grid gap-5 sm:grid-cols-2">
@@ -488,6 +628,7 @@ export default function QuestionsPage() {
                       newOptions.length < 2
                     ) {
                       setNewOptions(["", ""]);
+                      setNewOptionsEn(["", ""]);
                     }
                   }}
                   className="mt-2 w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-slate-900 outline-none focus:border-indigo-500 focus:ring-4 focus:ring-indigo-100"
@@ -517,7 +658,6 @@ export default function QuestionsPage() {
               </div>
             </div>
 
-            {/* SKALVAL */}
             {newType === "scale" && (
               <div className="mt-5">
                 <p className="text-sm font-medium text-slate-700">Skala</p>
@@ -550,27 +690,39 @@ export default function QuestionsPage() {
               </div>
             )}
 
-            {/* FLERVAL */}
             {newType === "multiple-choice" && (
               <div className="mt-5">
-                <p className="text-sm font-medium text-slate-700">
+                <p className="text-sm font-semibold text-slate-900">
                   Svarsalternativ
                 </p>
 
                 <p className="mt-1 text-sm text-slate-500">
-                  Lägg till minst två alternativ.
+                  Svenska och engelska alternativ måste ligga på samma rad.
                 </p>
 
                 <div className="mt-3 space-y-3">
                   {newOptions.map((option, index) => (
-                    <div key={index} className="flex items-center gap-2">
+                    <div
+                      key={index}
+                      className="grid gap-2 sm:grid-cols-[1fr_1fr_auto]"
+                    >
                       <input
                         type="text"
                         value={option}
                         onChange={(event) =>
                           updateNewOption(index, event.target.value)
                         }
-                        placeholder={`Alternativ ${index + 1}`}
+                        placeholder={`🇸🇪 Alternativ ${index + 1}`}
+                        className="w-full rounded-xl border border-slate-200 px-4 py-3 text-slate-900 outline-none focus:border-indigo-500 focus:ring-4 focus:ring-indigo-100"
+                      />
+
+                      <input
+                        type="text"
+                        value={newOptionsEn[index] ?? ""}
+                        onChange={(event) =>
+                          updateNewOptionEn(index, event.target.value)
+                        }
+                        placeholder={`🇬🇧 Option ${index + 1}`}
                         className="w-full rounded-xl border border-slate-200 px-4 py-3 text-slate-900 outline-none focus:border-indigo-500 focus:ring-4 focus:ring-indigo-100"
                       />
 
@@ -578,7 +730,7 @@ export default function QuestionsPage() {
                         <button
                           type="button"
                           onClick={() => removeNewOption(index)}
-                          className="shrink-0 rounded-xl border border-red-200 px-4 py-3 text-sm font-semibold text-red-600 transition hover:bg-red-50"
+                          className="rounded-xl border border-red-200 px-4 py-3 text-sm font-semibold text-red-600 transition hover:bg-red-50"
                         >
                           Ta bort
                         </button>
@@ -589,7 +741,10 @@ export default function QuestionsPage() {
 
                 <button
                   type="button"
-                  onClick={() => setNewOptions((previous) => [...previous, ""])}
+                  onClick={() => {
+                    setNewOptions((previous) => [...previous, ""]);
+                    setNewOptionsEn((previous) => [...previous, ""]);
+                  }}
                   className="mt-3 rounded-xl border border-indigo-200 px-4 py-2 text-sm font-semibold text-indigo-700 transition hover:bg-indigo-50"
                 >
                   + Lägg till alternativ
@@ -602,10 +757,12 @@ export default function QuestionsPage() {
               <p className="font-semibold text-slate-900">
                 Villkorad följdfråga
               </p>
+
               <p className="mt-1 text-sm text-slate-500">
                 Välj en tidigare skalfråga om denna fråga bara ska visas vid
                 vissa svar.
               </p>
+
               <select
                 value={newShowIfQuestionId}
                 onChange={(event) => {
@@ -615,11 +772,14 @@ export default function QuestionsPage() {
                 className="mt-4 w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-slate-900 outline-none focus:border-indigo-500 focus:ring-4 focus:ring-indigo-100"
               >
                 <option value="">Alltid visa frågan</option>
+
                 {questions
                   .filter((q) => q.type === "scale")
                   .map((q) => (
                     <option key={q.id} value={q.question_id}>
-                      #{q.position} – {q.text}
+                      {q.question_number
+                        ? `${q.question_number} – ${q.text}`
+                        : `#${q.position} – ${q.text}`}
                     </option>
                   ))}
               </select>
@@ -629,7 +789,9 @@ export default function QuestionsPage() {
                   const parent = questions.find(
                     (q) => q.question_id === newShowIfQuestionId,
                   );
+
                   if (!parent) return null;
+
                   const values =
                     parent.scale_max === 5
                       ? ["1", "2", "3", "4", "5"]
@@ -646,11 +808,13 @@ export default function QuestionsPage() {
                           "9",
                           "10",
                         ];
+
                   return (
                     <div className="mt-4">
                       <p className="text-sm font-medium text-slate-700">
                         Visa när svaret är:
                       </p>
+
                       <div className="mt-3 flex flex-wrap gap-2">
                         {values.map((value) => (
                           <button
@@ -707,7 +871,7 @@ export default function QuestionsPage() {
         )}
 
         {/* FRÅGOR */}
-        <div className="space-y-4">
+        <div className="mt-6 space-y-4">
           {questions
             .filter((question) => showHiddenQuestions || question.active)
             .map((question) => {
@@ -721,23 +885,40 @@ export default function QuestionsPage() {
                   <div className="flex items-start justify-between gap-4">
                     <div className="min-w-0 flex-1">
                       <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">
-                        {question.section}
+                        {getSectionLabel(question.section)}
                       </p>
 
                       {isEditing ? (
                         <div className="mt-3">
-                          <div>
-                            <label className="text-sm font-medium text-slate-700">
-                              Frågetext
-                            </label>
+                          <div className="grid gap-5 sm:grid-cols-2">
+                            <div>
+                              <label className="text-sm font-semibold text-slate-700">
+                                🇸🇪 Fråga på svenska
+                              </label>
 
-                            <textarea
-                              value={editedText}
-                              onChange={(event) =>
-                                setEditedText(event.target.value)
-                              }
-                              className="mt-2 min-h-28 w-full resize-y rounded-xl border border-slate-200 p-4 text-slate-900 outline-none transition focus:border-indigo-500 focus:ring-4 focus:ring-indigo-100"
-                            />
+                              <textarea
+                                value={editedText}
+                                onChange={(event) =>
+                                  setEditedText(event.target.value)
+                                }
+                                className="mt-2 min-h-28 w-full resize-y rounded-xl border border-slate-200 p-4 text-slate-900 outline-none transition focus:border-indigo-500 focus:ring-4 focus:ring-indigo-100"
+                              />
+                            </div>
+
+                            <div>
+                              <label className="text-sm font-semibold text-slate-700">
+                                🇬🇧 Question in English
+                              </label>
+
+                              <textarea
+                                value={editedTextEn}
+                                onChange={(event) =>
+                                  setEditedTextEn(event.target.value)
+                                }
+                                className="mt-2 min-h-28 w-full resize-y rounded-xl border border-slate-200 p-4 text-slate-900 outline-none transition focus:border-indigo-500 focus:ring-4 focus:ring-indigo-100"
+                                placeholder="Write the English version..."
+                              />
+                            </div>
                           </div>
 
                           <div className="mt-4">
@@ -763,7 +944,6 @@ export default function QuestionsPage() {
                             </select>
                           </div>
 
-                          {/* REDIGERA SKALA */}
                           {question.type === "scale" && (
                             <div className="mt-4">
                               <p className="text-sm font-medium text-slate-700">
@@ -798,22 +978,22 @@ export default function QuestionsPage() {
                             </div>
                           )}
 
-                          {/* REDIGERA FLERVAL */}
                           {question.type === "multiple-choice" && (
                             <div className="mt-4">
-                              <p className="text-sm font-medium text-slate-700">
+                              <p className="text-sm font-semibold text-slate-900">
                                 Svarsalternativ
                               </p>
 
                               <p className="mt-1 text-sm text-slate-500">
-                                Minst två alternativ krävs.
+                                Svenska och engelska alternativ ligger på samma
+                                rad.
                               </p>
 
                               <div className="mt-3 space-y-3">
                                 {editedOptions.map((option, index) => (
                                   <div
                                     key={index}
-                                    className="flex items-center gap-2"
+                                    className="grid gap-2 sm:grid-cols-[1fr_1fr_auto]"
                                   >
                                     <input
                                       type="text"
@@ -824,7 +1004,20 @@ export default function QuestionsPage() {
                                           event.target.value,
                                         )
                                       }
-                                      placeholder={`Alternativ ${index + 1}`}
+                                      placeholder={`🇸🇪 Alternativ ${index + 1}`}
+                                      className="w-full rounded-xl border border-slate-200 px-4 py-3 text-slate-900 outline-none focus:border-indigo-500 focus:ring-4 focus:ring-indigo-100"
+                                    />
+
+                                    <input
+                                      type="text"
+                                      value={editedOptionsEn[index] ?? ""}
+                                      onChange={(event) =>
+                                        updateEditedOptionEn(
+                                          index,
+                                          event.target.value,
+                                        )
+                                      }
+                                      placeholder={`🇬🇧 Option ${index + 1}`}
                                       className="w-full rounded-xl border border-slate-200 px-4 py-3 text-slate-900 outline-none focus:border-indigo-500 focus:ring-4 focus:ring-indigo-100"
                                     />
 
@@ -834,7 +1027,7 @@ export default function QuestionsPage() {
                                         onClick={() =>
                                           removeEditedOption(index)
                                         }
-                                        className="shrink-0 rounded-xl border border-red-200 px-4 py-3 text-sm font-semibold text-red-600 transition hover:bg-red-50"
+                                        className="rounded-xl border border-red-200 px-4 py-3 text-sm font-semibold text-red-600 transition hover:bg-red-50"
                                       >
                                         Ta bort
                                       </button>
@@ -845,12 +1038,16 @@ export default function QuestionsPage() {
 
                               <button
                                 type="button"
-                                onClick={() =>
+                                onClick={() => {
                                   setEditedOptions((previous) => [
                                     ...previous,
                                     "",
-                                  ])
-                                }
+                                  ]);
+                                  setEditedOptionsEn((previous) => [
+                                    ...previous,
+                                    "",
+                                  ]);
+                                }}
                                 className="mt-3 rounded-xl border border-indigo-200 px-4 py-2 text-sm font-semibold text-indigo-700 transition hover:bg-indigo-50"
                               >
                                 + Lägg till alternativ
@@ -863,6 +1060,7 @@ export default function QuestionsPage() {
                             <p className="font-semibold text-slate-900">
                               Villkorad följdfråga
                             </p>
+
                             <select
                               value={editedShowIfQuestionId}
                               onChange={(event) => {
@@ -872,6 +1070,7 @@ export default function QuestionsPage() {
                               className="mt-3 w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-slate-900 outline-none focus:border-indigo-500 focus:ring-4 focus:ring-indigo-100"
                             >
                               <option value="">Alltid visa frågan</option>
+
                               {questions
                                 .filter(
                                   (candidate) =>
@@ -883,7 +1082,9 @@ export default function QuestionsPage() {
                                     key={candidate.id}
                                     value={candidate.question_id}
                                   >
-                                    #{candidate.position} – {candidate.text}
+                                    {candidate.question_number
+                                      ? `${candidate.question_number} – ${candidate.text}`
+                                      : `#${candidate.position} – ${candidate.text}`}
                                   </option>
                                 ))}
                             </select>
@@ -894,7 +1095,9 @@ export default function QuestionsPage() {
                                   (q) =>
                                     q.question_id === editedShowIfQuestionId,
                                 );
+
                                 if (!parent) return null;
+
                                 const values =
                                   parent.scale_max === 5
                                     ? ["1", "2", "3", "4", "5"]
@@ -911,11 +1114,13 @@ export default function QuestionsPage() {
                                         "9",
                                         "10",
                                       ];
+
                                 return (
                                   <div className="mt-4">
                                     <p className="text-sm font-medium text-slate-700">
                                       Visa när svaret är:
                                     </p>
+
                                     <div className="mt-3 flex flex-wrap gap-2">
                                       {values.map((value) => (
                                         <button
@@ -942,7 +1147,6 @@ export default function QuestionsPage() {
                               })()}
                           </div>
 
-                          {/* REDIGERA OBLIGATORISK */}
                           <label className="mt-4 flex items-center gap-3 text-sm font-medium text-slate-700">
                             <input
                               type="checkbox"
@@ -981,6 +1185,12 @@ export default function QuestionsPage() {
                             {question.text}
                           </h2>
 
+                          {question.text_en && (
+                            <p className="mt-2 text-sm text-slate-500">
+                              🇬🇧 {question.text_en}
+                            </p>
+                          )}
+
                           <div className="mt-3 flex flex-wrap gap-2 text-xs">
                             <span className="rounded-full bg-slate-100 px-3 py-1 text-slate-600">
                               {getQuestionTypeLabel(question)}
@@ -1011,14 +1221,22 @@ export default function QuestionsPage() {
 
                           {question.type === "multiple-choice" &&
                             question.options?.length > 0 && (
-                              <div className="mt-3 flex flex-wrap gap-2">
+                              <div className="mt-4 space-y-2">
                                 {question.options.map((option, index) => (
-                                  <span
+                                  <div
                                     key={`${option}-${index}`}
-                                    className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-1 text-xs text-slate-600"
+                                    className="flex flex-wrap items-center gap-2 text-xs"
                                   >
-                                    {option}
-                                  </span>
+                                    <span className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-1 text-slate-600">
+                                      🇸🇪 {option}
+                                    </span>
+
+                                    {question.options_en?.[index] && (
+                                      <span className="rounded-lg border border-indigo-100 bg-indigo-50 px-3 py-1 text-indigo-700">
+                                        🇬🇧 {question.options_en[index]}
+                                      </span>
+                                    )}
+                                  </div>
                                 ))}
                               </div>
                             )}
