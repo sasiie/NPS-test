@@ -23,6 +23,7 @@ type Question = {
 };
 
 const sectionOptions = [
+  { value: "background", label: "Bakgrundsfrågor" },
   { value: "enps", label: "Din arbetsplats" },
   { value: "work-environment", label: "Arbetsmiljö" },
   { value: "leadership", label: "Ledarskap" },
