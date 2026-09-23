@@ -793,8 +793,8 @@ export default function Home() {
                     <div
                       className={
                         question.scale_max === 5
-                          ? "flex flex-wrap justify-center gap-3"
-                          : "flex flex-wrap justify-center gap-2 sm:gap-3"
+                          ? "flex justify-between"
+                          : "flex justify-between"
                       }
                     >
                       {(question.scale_max === 5
