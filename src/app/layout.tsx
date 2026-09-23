@@ -14,6 +14,9 @@ const geistMono = Geist_Mono({
 
 export const metadata: Metadata = {
   title: "Balzac-medarbetarpuls",
+  icons: {
+    icon: "/balzac-katt.svg",
+  },
 };
 
 export default function RootLayout({ children }: LayoutProps<"/">) {
