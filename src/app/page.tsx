@@ -27,6 +27,11 @@ type SurveySection = {
 };
 
 const sectionInfo: Record<string, { title: string; description?: string }> = {
+  background: {
+    title: "Bakgrundsfrågor",
+    description:
+      "De här frågorna är frivilliga och används endast för att förstå resultaten på gruppnivå.",
+  },
   enps: {
     title: "Din arbetsplats",
     description: "Vi börjar med några övergripande frågor.",
@@ -39,6 +44,12 @@ const sectionInfo: Record<string, { title: string; description?: string }> = {
     title: "Ledarskap",
     description: "Några frågor om ledarskap och stöd.",
   },
+  communication: {
+    title: "Kommunikation",
+  },
+  collaboration: {
+    title: "Samarbete",
+  },
   development: {
     title: "Utveckling",
   },
@@ -47,6 +58,17 @@ const sectionInfo: Record<string, { title: string; description?: string }> = {
     description: "Här kan du lämna egna synpunkter.",
   },
 };
+
+const sectionOrder = [
+  "background",
+  "enps",
+  "work-environment",
+  "leadership",
+  "communication",
+  "collaboration",
+  "development",
+  "comments",
+];
 
 export default function Home() {
   const [surveySections, setSurveySections] = useState<SurveySection[]>([]);
@@ -104,7 +126,11 @@ export default function Home() {
         section.questions.push(question);
       }
 
-      setSurveySections(sections);
+ const sortedSections = [...sections].sort(
+  (a, b) => sectionOrder.indexOf(a.id) - sectionOrder.indexOf(b.id),
+);
+
+setSurveySections(sortedSections);
       setIsLoading(false);
     }
 
