@@ -11,6 +11,7 @@ type ResponseRow = {
   id: string;
   created_at: string;
   round_id: string;
+  department: "kitchen" | "dining" | null;
   answers: Answers;
 };
 
@@ -289,10 +290,6 @@ export default function ResultsPage() {
     ).sort((a, b) => a.localeCompare(b, "sv"));
   }
 
-  const departmentOptions = getUniqueAnswers(
-    BACKGROUND_QUESTIONS.department.questionId,
-  );
-
   const tenureOptions = getUniqueAnswers(
     BACKGROUND_QUESTIONS.tenure.questionId,
   );
@@ -305,11 +302,7 @@ export default function ResultsPage() {
     departmentFilter !== "" || tenureFilter !== "" || employmentFilter !== "";
 
   const filteredResponses = responses.filter((response) => {
-    if (
-      departmentFilter &&
-      response.answers[BACKGROUND_QUESTIONS.department.questionId] !==
-        departmentFilter
-    ) {
+    if (departmentFilter && response.department !== departmentFilter) {
       return false;
     }
 
@@ -712,8 +705,7 @@ export default function ResultsPage() {
                 </h2>
 
                 <p className="mt-1 text-sm text-slate-500">
-                  Segmentera resultatet med hjälp av de frivilliga
-                  bakgrundsfrågorna.
+                  Filtrera resultatet efter avdelning och bakgrundsinformation.
                 </p>
               </div>
 
@@ -734,23 +726,18 @@ export default function ResultsPage() {
                   htmlFor="department-filter"
                   className="text-sm font-semibold text-slate-700"
                 >
-                  Avdelning/roll
+                  Avdelning
                 </label>
 
                 <select
                   id="department-filter"
                   value={departmentFilter}
                   onChange={(event) => setDepartmentFilter(event.target.value)}
-                  disabled={departmentOptions.length === 0}
-                  className="mt-2 w-full rounded-xl border border-slate-200 bg-white px-3 py-3 text-sm text-slate-900 disabled:bg-slate-50 disabled:text-slate-400"
+                  className="mt-2 w-full rounded-xl border border-slate-200 bg-white px-3 py-3 text-sm text-slate-900 outline-none transition focus:border-indigo-500 focus:ring-4 focus:ring-indigo-100"
                 >
-                  <option value="">Alla</option>
-
-                  {departmentOptions.map((option) => (
-                    <option key={option} value={option}>
-                      {option}
-                    </option>
-                  ))}
+                  <option value="">Alla avdelningar</option>
+                  <option value="kitchen">Kök</option>
+                  <option value="dining">Matsal</option>
                 </select>
               </div>
 
