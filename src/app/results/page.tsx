@@ -37,22 +37,7 @@ type SurveyRound = {
   open_question_ids: string[];
 };
 
-const BACKGROUND_QUESTIONS = {
-  department: {
-    questionId: "custom-fb075db4-90e6-4328-b0cf-dcacc3c42b56",
-    label: "Avdelning/roll",
-  },
-  tenure: {
-    questionId: "custom-0de9bb66-8b42-47f9-a67f-5296fbf90552",
-    label: "Anställningstid",
-  },
-  employment: {
-    questionId: "custom-41473b06-d9b6-48f2-b577-6738f1131448",
-    label: "Anställningsform",
-  },
-};
-
-const MIN_GROUP_SIZE = 1;
+const MIN_GROUP_SIZE = 5;
 
 export default function ResultsPage() {
   const router = useRouter();
@@ -65,8 +50,6 @@ export default function ResultsPage() {
   const [selectedRoundId, setSelectedRoundId] = useState("");
 
   const [departmentFilter, setDepartmentFilter] = useState("");
-  const [tenureFilter, setTenureFilter] = useState("");
-  const [employmentFilter, setEmploymentFilter] = useState("");
 
   const [trendQuestionId, setTrendQuestionId] = useState("");
 
@@ -202,8 +185,6 @@ export default function ResultsPage() {
         setResponses(data);
 
         setDepartmentFilter("");
-        setTenureFilter("");
-        setEmploymentFilter("");
       } catch (error) {
         console.error(error);
         setError("Kunde inte hämta resultaten.");
@@ -275,49 +256,10 @@ export default function ResultsPage() {
   // SEGMENTERING
   // --------------------------------------------------
 
-  function getUniqueAnswers(questionId: string) {
-    return Array.from(
-      new Set(
-        responses
-          .map((response) => response.answers[questionId])
-          .filter(
-            (answer): answer is string =>
-              typeof answer === "string" &&
-              answer.trim().length > 0 &&
-              answer.trim() !== "-",
-          ),
-      ),
-    ).sort((a, b) => a.localeCompare(b, "sv"));
-  }
-
-  const tenureOptions = getUniqueAnswers(
-    BACKGROUND_QUESTIONS.tenure.questionId,
-  );
-
-  const employmentOptions = getUniqueAnswers(
-    BACKGROUND_QUESTIONS.employment.questionId,
-  );
-
-  const hasActiveFilter =
-    departmentFilter !== "" || tenureFilter !== "" || employmentFilter !== "";
+  const hasActiveFilter = departmentFilter !== "";
 
   const filteredResponses = responses.filter((response) => {
     if (departmentFilter && response.department !== departmentFilter) {
-      return false;
-    }
-
-    if (
-      tenureFilter &&
-      response.answers[BACKGROUND_QUESTIONS.tenure.questionId] !== tenureFilter
-    ) {
-      return false;
-    }
-
-    if (
-      employmentFilter &&
-      response.answers[BACKGROUND_QUESTIONS.employment.questionId] !==
-        employmentFilter
-    ) {
       return false;
     }
 
@@ -436,11 +378,19 @@ export default function ResultsPage() {
   const trendData = selectedTrendQuestion
     ? rounds
         .map((round) => {
-          const roundResponses = allResponses.filter(
-            (response) => response.round_id === round.id,
-          );
+          const roundResponses = allResponses.filter((response) => {
+            if (response.round_id !== round.id) {
+              return false;
+            }
 
-          // Visa inte trendresultat för grupper med färre än 5 svar.
+            if (departmentFilter && response.department !== departmentFilter) {
+              return false;
+            }
+
+            return true;
+          });
+
+          // Visa inte trendresultat för grupper under anonymitetsgränsen.
           if (roundResponses.length < MIN_GROUP_SIZE) {
             return null;
           }
@@ -451,7 +401,7 @@ export default function ResultsPage() {
             )
             .filter((score) => Number.isFinite(score));
 
-          // Extra skydd om färre än 5 personer har svarat på just frågan.
+          // Extra skydd om för få personer har svarat på just frågan.
           if (scores.length < MIN_GROUP_SIZE) {
             return null;
           }
@@ -591,8 +541,6 @@ export default function ResultsPage() {
 
   function resetFilters() {
     setDepartmentFilter("");
-    setTenureFilter("");
-    setEmploymentFilter("");
   }
 
   // --------------------------------------------------
@@ -705,7 +653,7 @@ export default function ResultsPage() {
                 </h2>
 
                 <p className="mt-1 text-sm text-slate-500">
-                  Filtrera resultatet efter avdelning och bakgrundsinformation.
+                  Filtrera resultatet efter avdelning.
                 </p>
               </div>
 
@@ -720,7 +668,7 @@ export default function ResultsPage() {
               )}
             </div>
 
-            <div className="mt-5 grid gap-4 md:grid-cols-3">
+            <div className="mt-5 max-w-sm">
               <div>
                 <label
                   htmlFor="department-filter"
@@ -738,56 +686,6 @@ export default function ResultsPage() {
                   <option value="">Alla avdelningar</option>
                   <option value="kitchen">Kök</option>
                   <option value="dining">Matsal</option>
-                </select>
-              </div>
-
-              <div>
-                <label
-                  htmlFor="tenure-filter"
-                  className="text-sm font-semibold text-slate-700"
-                >
-                  Anställningstid
-                </label>
-
-                <select
-                  id="tenure-filter"
-                  value={tenureFilter}
-                  onChange={(event) => setTenureFilter(event.target.value)}
-                  disabled={tenureOptions.length === 0}
-                  className="mt-2 w-full rounded-xl border border-slate-200 bg-white px-3 py-3 text-sm text-slate-900 disabled:bg-slate-50 disabled:text-slate-400"
-                >
-                  <option value="">Alla</option>
-
-                  {tenureOptions.map((option) => (
-                    <option key={option} value={option}>
-                      {option}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              <div>
-                <label
-                  htmlFor="employment-filter"
-                  className="text-sm font-semibold text-slate-700"
-                >
-                  Anställningsform
-                </label>
-
-                <select
-                  id="employment-filter"
-                  value={employmentFilter}
-                  onChange={(event) => setEmploymentFilter(event.target.value)}
-                  disabled={employmentOptions.length === 0}
-                  className="mt-2 w-full rounded-xl border border-slate-200 bg-white px-3 py-3 text-sm text-slate-900 disabled:bg-slate-50 disabled:text-slate-400"
-                >
-                  <option value="">Alla</option>
-
-                  {employmentOptions.map((option) => (
-                    <option key={option} value={option}>
-                      {option}
-                    </option>
-                  ))}
                 </select>
               </div>
             </div>
