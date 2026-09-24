@@ -5,7 +5,22 @@ import type { SurveyAnswers } from "@/types/survey";
 
 export async function POST(request: Request) {
   try {
-    const answers: SurveyAnswers = await request.json();
+    const body: {
+      answers: SurveyAnswers;
+      department: "kitchen" | "dining" | null;
+    } = await request.json();
+
+    const { answers, department } = body;
+
+    if (!department || !["kitchen", "dining"].includes(department)) {
+      return NextResponse.json(
+        {
+          success: false,
+          message: "Du behöver välja en avdelning.",
+        },
+        { status: 400 },
+      );
+    }
 
     // Hämta den puls som är aktiv just nu
     const { data: activeRound, error: roundError } = await supabase
@@ -29,6 +44,7 @@ export async function POST(request: Request) {
     // Spara svaret på den aktiva pulsen
     const { error } = await supabase.from("survey-responses").insert({
       round_id: activeRound.id,
+      department,
       answers,
     });
 
