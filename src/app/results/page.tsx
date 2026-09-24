@@ -52,7 +52,7 @@ const BACKGROUND_QUESTIONS = {
   },
 };
 
-const MIN_GROUP_SIZE = 5;
+const MIN_GROUP_SIZE = 1;
 
 export default function ResultsPage() {
   const router = useRouter();
