@@ -123,6 +123,9 @@ export default function Home() {
   const [isLoading, setIsLoading] = useState(true);
   const [loadError, setLoadError] = useState("");
   const [surveyStarted, setSurveyStarted] = useState(false);
+  const [department, setDepartment] = useState<"kitchen" | "dining" | null>(
+    null,
+  );
 
   useEffect(() => {
     async function loadSurvey() {
@@ -378,12 +381,7 @@ export default function Home() {
       <main className="flex min-h-screen items-center justify-center bg-slate-50 px-4 py-10 sm:px-6">
         <div className="w-full max-w-2xl">
           <div className="rounded-3xl border border-slate-200 bg-white p-8 shadow-sm sm:p-12">
-            <div className="mb-6 flex items-center justify-between">
-              <img
-                src="/balzac-katt.svg"
-                alt="Balzac"
-                className="-mt-6 mb-5 h-20 w-auto"
-              />
+            <div className="mb-6 flex justify-end">
               <div className="inline-flex rounded-xl border border-slate-200 bg-slate-50 p-1">
                 <button
                   type="button"
@@ -491,10 +489,48 @@ export default function Home() {
               </div>
             </div>
 
+            <div className="mt-8">
+              <p className="text-sm font-semibold text-slate-900">
+                {language === "sv"
+                  ? "Vilken avdelning arbetar du på?"
+                  : "Which department do you work in?"}
+              </p>
+
+              <div className="mt-3 grid grid-cols-2 gap-3">
+                <button
+                  type="button"
+                  onClick={() => setDepartment("kitchen")}
+                  className={`rounded-xl border px-4 py-3 text-sm font-semibold transition ${
+                    department === "kitchen"
+                      ? "border-indigo-600 bg-indigo-50 text-indigo-700 ring-2 ring-indigo-100"
+                      : "border-slate-200 bg-white text-slate-700 hover:border-indigo-300"
+                  }`}
+                >
+                  {language === "sv" ? "Kök" : "Kitchen"}
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setDepartment("dining")}
+                  className={`rounded-xl border px-4 py-3 text-sm font-semibold transition ${
+                    department === "dining"
+                      ? "border-indigo-600 bg-indigo-50 text-indigo-700 ring-2 ring-indigo-100"
+                      : "border-slate-200 bg-white text-slate-700 hover:border-indigo-300"
+                  }`}
+                >
+                  {language === "sv" ? "Matsal" : "Dining room"}
+                </button>
+              </div>
+            </div>
+
             <button
               type="button"
-              onClick={() => setSurveyStarted(true)}
-              className="mt-8 w-full rounded-xl bg-indigo-600 px-6 py-4 text-base font-semibold text-white shadow-sm transition hover:bg-indigo-700 focus:outline-none focus:ring-4 focus:ring-indigo-200"
+              onClick={() => {
+                if (!department) return;
+                setSurveyStarted(true);
+              }}
+              disabled={!department}
+              className="mt-8 w-full rounded-xl bg-indigo-600 px-6 py-4 text-base font-semibold text-white shadow-sm transition hover:bg-indigo-700 focus:outline-none focus:ring-4 focus:ring-indigo-200 disabled:cursor-not-allowed disabled:bg-slate-300 disabled:shadow-none"
             >
               {language === "sv" ? "Starta enkäten" : "Start survey"}
 
@@ -572,11 +608,6 @@ export default function Home() {
 
     if (!isLastStep) {
       setCurrentStep((step) => step + 1);
-
-      window.scrollTo({
-        top: 0,
-        behavior: "smooth",
-      });
     }
   }
 
@@ -585,11 +616,6 @@ export default function Home() {
 
     if (!isFirstStep) {
       setCurrentStep((step) => step - 1);
-
-      window.scrollTo({
-        top: 0,
-        behavior: "smooth",
-      });
     }
   }
 
@@ -795,7 +821,13 @@ export default function Home() {
                 {/* SKALFRÅGA */}
                 {question.type === "scale" && (
                   <div className="mt-6">
-                    <div className="flex justify-center gap-4 sm:gap-5">
+                    <div
+                      className={
+                        question.scale_max === 5
+                          ? "flex flex-wrap gap-2"
+                          : "grid grid-cols-5 gap-2 sm:grid-cols-10"
+                      }
+                    >
                       {(question.scale_max === 5
                         ? [1, 2, 3, 4, 5]
                         : [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
@@ -811,7 +843,7 @@ export default function Home() {
                             onClick={() =>
                               updateAnswer(question.question_id, String(number))
                             }
-                            className={`flex h-12 w-12 items-center justify-center rounded-lg border text-sm font-semibold transition sm:h-12 sm:w-12 ${
+                            className={`flex h-11 w-11 items-center justify-center rounded-lg border text-sm font-semibold transition sm:h-12 sm:w-12 ${
                               selected
                                 ? "border-indigo-600 bg-indigo-600 text-white shadow-sm"
                                 : hasError
