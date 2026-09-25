@@ -119,6 +119,7 @@ export default function Home() {
   const [answers, setAnswers] = useState<SurveyAnswers>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitted, setSubmitted] = useState(false);
+  const [receiptCode, setReceiptCode] = useState<string | null>(null);
   const [showErrors, setShowErrors] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [loadError, setLoadError] = useState("");
@@ -657,6 +658,13 @@ export default function Home() {
         throw new Error("Kunde inte skicka svaren");
       }
 
+      const data: {
+        success: boolean;
+        receiptCode?: string | null;
+        message?: string;
+      } = await response.json();
+
+      setReceiptCode(data.receiptCode ?? null);
       setSubmitted(true);
     } catch (error) {
       console.error(error);
@@ -672,6 +680,10 @@ export default function Home() {
   }
 
   if (submitted) {
+    const formattedReceiptCode = receiptCode
+      ? `${receiptCode.slice(0, 4)} ${receiptCode.slice(4)}`
+      : null;
+
     return (
       <main className="flex min-h-screen items-center justify-center bg-slate-50 px-6">
         <div className="w-full max-w-lg rounded-2xl border border-slate-200 bg-white p-10 text-center shadow-sm">
@@ -690,6 +702,34 @@ export default function Home() {
               ? "Ditt svar har skickats in."
               : "Your response has been submitted."}
           </p>
+
+          {formattedReceiptCode && (
+            <div className="mt-8 rounded-2xl border border-indigo-100 bg-indigo-50 p-6">
+              <p className="text-sm font-semibold text-indigo-700">
+                {language === "sv"
+                  ? "Din anonyma kvittens"
+                  : "Your anonymous receipt"}
+              </p>
+
+              <p className="mt-3 font-mono text-4xl font-bold tracking-wider text-slate-900">
+                {formattedReceiptCode}
+              </p>
+
+              <p className="mt-4 text-sm leading-6 text-slate-600">
+                {language === "sv"
+                  ? "Spara numret om du behöver visa att du har deltagit. Kvittensen innehåller ingen information om dina svar."
+                  : "Save this number if you need to confirm that you participated. The receipt contains no information about your responses."}
+              </p>
+            </div>
+          )}
+
+          {!formattedReceiptCode && (
+            <p className="mt-6 rounded-xl bg-amber-50 p-4 text-sm text-amber-700">
+              {language === "sv"
+                ? "Ditt svar registrerades, men en kvittens kunde inte skapas."
+                : "Your response was registered, but a receipt could not be created."}
+            </p>
+          )}
         </div>
       </main>
     );

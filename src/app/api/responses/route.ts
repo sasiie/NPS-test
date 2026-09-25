@@ -3,6 +3,11 @@ import { createClient } from "@supabase/supabase-js";
 import { supabase } from "@/lib/supabase";
 import type { SurveyAnswers } from "@/types/survey";
 
+// Skapar ett slumpmässigt 8-siffrigt kvittensnummer
+function generateReceiptCode() {
+  return Math.floor(10000000 + Math.random() * 90000000).toString();
+}
+
 export async function POST(request: Request) {
   try {
     const body: {
@@ -41,15 +46,17 @@ export async function POST(request: Request) {
       );
     }
 
-    // Spara svaret på den aktiva pulsen
-    const { error } = await supabase.from("survey-responses").insert({
-      round_id: activeRound.id,
-      department,
-      answers,
-    });
+    // Spara enkätsvaret
+    const { error: responseError } = await supabase
+      .from("survey-responses")
+      .insert({
+        round_id: activeRound.id,
+        department,
+        answers,
+      });
 
-    if (error) {
-      console.error("Supabase POST error:", error);
+    if (responseError) {
+      console.error("Supabase POST error:", responseError);
 
       return NextResponse.json(
         {
@@ -60,9 +67,59 @@ export async function POST(request: Request) {
       );
     }
 
+    // --------------------------------------------------
+    // SKAPA ANONYM KVITTENS
+    // --------------------------------------------------
+
+    let receiptCode = "";
+    let receiptCreated = false;
+
+    // Försök upp till 5 gånger om en kod mot förmodan redan finns.
+    for (let attempt = 0; attempt < 5; attempt++) {
+      const candidateCode = generateReceiptCode();
+
+      const { error: receiptError } = await supabase
+        .from("survey-receipts")
+        .insert({
+          receipt_code: candidateCode,
+          round_id: activeRound.id,
+        });
+
+      if (!receiptError) {
+        receiptCode = candidateCode;
+        receiptCreated = true;
+        break;
+      }
+
+      // PostgreSQL 23505 = unique constraint violation.
+      // Om numret redan finns testar vi bara ett nytt.
+      if (receiptError.code === "23505") {
+        continue;
+      }
+
+      console.error("Receipt error:", receiptError);
+      break;
+    }
+
+    // Svaret är redan sparat även om skapandet av kvittensen skulle misslyckas.
+    if (!receiptCreated) {
+      console.error("Kunde inte skapa anonym kvittens.");
+
+      return NextResponse.json(
+        {
+          success: true,
+          receiptCode: null,
+          message:
+            "Svaret sparades, men kvittensen kunde inte skapas. Kontakta ansvarig.",
+        },
+        { status: 201 },
+      );
+    }
+
     return NextResponse.json(
       {
         success: true,
+        receiptCode,
         message: "Tack för ditt svar!",
       },
       { status: 201 },
