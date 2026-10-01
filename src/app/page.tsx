@@ -867,7 +867,7 @@ export default function Home() {
                     <div
                       className={
                         question.scale_max === 5
-                          ? "flex flex-wrap gap-2"
+                          ? "flex flex-wrap justify-center gap-2"
                           : "grid grid-cols-5 gap-2 sm:grid-cols-10"
                       }
                     >
